@@ -49,7 +49,7 @@ function formatCount(num?: number): string {
   return num.toString();
 }
 
-function buildDownloadUrl(videoData: VideoData, quality: QualityOption): string {
+function buildVideoProxyUrl(videoData: VideoData, quality: QualityOption, download = false): string {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const params = new URLSearchParams({
@@ -57,10 +57,19 @@ function buildDownloadUrl(videoData: VideoData, quality: QualityOption): string 
     filename: `tiktok-${videoData.id}.mp4`,
     apikey: anonKey,
   });
+  if (download) {
+    params.set("download", "1");
+  }
   if (videoData.cookies) {
     params.set("cookies", videoData.cookies);
   }
   return `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
+}
+
+function isIOSDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
 /* ── Sub-components ── */
@@ -199,6 +208,7 @@ function DownloadActions({
   qualityCount: number;
 }) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -206,7 +216,6 @@ function DownloadActions({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback: select a temp input
       const el = document.createElement("textarea");
       el.value = downloadUrl;
       document.body.appendChild(el);
@@ -218,17 +227,48 @@ function DownloadActions({
     }
   }, [downloadUrl]);
 
+  const handleDownload = useCallback(async () => {
+    if (!downloadUrl || downloading) return;
+
+    if (!isIOSDevice()) {
+      window.open(downloadUrl, "_top", "noopener,noreferrer");
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error("Failed to download video");
+      }
+
+      const blob = await response.blob();
+      const file = new File([blob], "tiktok-video.mp4", { type: blob.type || "video/mp4" });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "TikTok Video" });
+      } else {
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, "_blank", "noopener,noreferrer");
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch {
+      window.open(downloadUrl, "_top", "noopener,noreferrer");
+    } finally {
+      setDownloading(false);
+    }
+  }, [downloadUrl, downloading]);
+
   return (
     <div className="space-y-3">
-      <a
-        href={downloadUrl}
-        target="_top"
-        rel="noopener noreferrer"
-        className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
+      <button
+        onClick={handleDownload}
+        disabled={!downloadUrl || downloading}
+        className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 disabled:bg-secondary text-accent-foreground disabled:text-muted-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
       >
-        <Download className="w-4 h-4" />
-        Download Video
-      </a>
+        {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {downloading ? "Preparing Download" : "Download Video"}
+      </button>
 
       <button
         onClick={handleCopy}
@@ -242,7 +282,7 @@ function DownloadActions({
         {qualityCount} quality option{qualityCount !== 1 ? "s" : ""} · no watermark
       </p>
       <p className="text-xs text-center text-dim">
-        On iPhone: tap Download, then open the link in Safari if prompted.
+        On iPhone, Download now prepares the file first so it can be saved or shared correctly.
       </p>
     </div>
   );
@@ -293,7 +333,8 @@ export default function TikTokDownloader() {
 
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
-  const downloadUrl = videoData && activeQuality ? buildDownloadUrl(videoData, activeQuality) : "";
+  const previewUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, false) : "";
+  const downloadUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, true) : "";
 
   return (
     <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-4 sm:p-6 flex flex-col items-center justify-center">
@@ -343,7 +384,7 @@ export default function TikTokDownloader() {
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="surface-elevated rounded-2xl overflow-hidden">
               <div className="flex flex-col md:flex-row">
-                <VideoPreview cover={videoData.video.cover} streamUrl={downloadUrl} />
+                <VideoPreview cover={videoData.video.cover} streamUrl={previewUrl} />
 
                 <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between gap-4">
                   <div className="space-y-4">

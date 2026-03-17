@@ -325,6 +325,30 @@ export default function TikTokDownloader() {
     }
   };
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const isTikTokUrl = (text: string) => /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(text.trim());
+
+  const handlePasteFromClipboard = useCallback(async () => {
+    if (url) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && isTikTokUrl(text)) {
+        setUrl(text.trim());
+      }
+    } catch { /* clipboard permission denied — ignore */ }
+  }, [url]);
+
+  const handlePasteButton = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setUrl(text.trim());
+        inputRef.current?.focus();
+      }
+    } catch { /* clipboard permission denied — ignore */ }
+  }, []);
+
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
   const previewUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, false) : "";

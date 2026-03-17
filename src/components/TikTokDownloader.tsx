@@ -47,7 +47,7 @@ function formatCount(num?: number): string {
 export default function TikTokDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [downloading] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);

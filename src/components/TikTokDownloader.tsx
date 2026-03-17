@@ -54,19 +54,25 @@ export default function TikTokDownloader() {
 
   const handleDownload = () => {
     if (!videoData) return;
-    const quality = videoData.qualities[selectedQuality] || { url: videoData.video.url };
-    if (!quality.url) return;
+
+    const selectedOption = videoData.qualities[selectedQuality] || { url: videoData.video.url, watermark: false };
+    if (!selectedOption.url) return;
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?videoUrl=${encodeURIComponent(quality.url)}&filename=${encodeURIComponent(`tiktok-${videoData.id}.mp4`)}&apikey=${anonKey}`;
+    const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?videoUrl=${encodeURIComponent(selectedOption.url)}&filename=${encodeURIComponent(`tiktok-${videoData.id}.mp4`)}&apikey=${anonKey}`;
 
     const userAgent = navigator.userAgent || "";
     const isIos = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     const isSafari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
-    const useDirectUrl = isIos && isSafari;
 
-    window.open(useDirectUrl ? quality.url : proxyUrl, "_blank", "noopener,noreferrer");
+    if (isIos && isSafari) {
+      const iosOption = videoData.qualities.find((option) => option.watermark) || selectedOption;
+      window.location.assign(iosOption.url);
+      return;
+    }
+
+    window.open(proxyUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleFetch = async (e: React.FormEvent) => {
@@ -236,6 +242,9 @@ export default function TikTokDownloader() {
                     </button>
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
                       {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} available
+                    </p>
+                    <p className="text-xs text-center text-dim">
+                      On iPhone/iPad, TikTok may open the video first — use Share → Save Video.
                     </p>
                   </div>
                 </div>

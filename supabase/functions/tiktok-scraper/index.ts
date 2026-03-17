@@ -4,7 +4,8 @@ const corsHeaders = {
 };
 
 // Use the tiktok-api-dl npm package via Deno's npm: specifier
-import { Downloader } from "npm:@tobyg74/tiktok-api-dl@1.0.9";
+import TiktokDl from "npm:@tobyg74/tiktok-api-dl@1.0.9";
+const { Downloader } = TiktokDl;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {

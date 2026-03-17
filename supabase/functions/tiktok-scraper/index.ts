@@ -119,9 +119,19 @@ Deno.serve(async (req) => {
   try {
     const { url } = await req.json();
 
-    if (!url || !url.includes('tiktok.com')) {
+    if (!url) {
       return new Response(
-        JSON.stringify({ error: 'Invalid TikTok URL' }),
+        JSON.stringify({ error: 'Please provide a TikTok URL' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Must be a tiktok.com page URL, not a CDN/proxy/download link
+    const trimmed = url.trim();
+    const isValidTikTokPage = /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(trimmed);
+    if (!isValidTikTokPage) {
+      return new Response(
+        JSON.stringify({ error: 'Please paste a TikTok video page URL (e.g. https://www.tiktok.com/@user/video/...)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

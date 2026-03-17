@@ -227,7 +227,13 @@ export default function TikTokDownloader() {
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) return;
+    const trimmed = url.trim();
+    if (!trimmed) return;
+
+    if (!/^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(trimmed)) {
+      setError("Please paste a TikTok video URL (e.g. https://www.tiktok.com/@user/video/...)");
+      return;
+    }
 
     setLoading(true);
     setError(null);

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste } from "lucide-react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
 import { supabase } from "@/integrations/supabase/client";
@@ -199,9 +199,11 @@ function QualitySelector({
 function DownloadActions({
   downloadUrl,
   qualityCount,
+  onDownload,
 }: {
   downloadUrl: string;
   qualityCount: number;
+  onDownload?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -227,11 +229,13 @@ function DownloadActions({
     if (!downloadUrl || downloading) return;
 
     if (!isIOSDevice()) {
+      onDownload?.();
       window.open(downloadUrl, "_top", "noopener,noreferrer");
       return;
     }
 
     setDownloading(true);
+    onDownload?.();
     try {
       const response = await fetch(downloadUrl);
       if (!response.ok) throw new Error("Failed to download video");
@@ -290,6 +294,23 @@ export default function TikTokDownloader() {
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("download_counter")
+      .select("total_downloads")
+      .eq("id", 1)
+      .single()
+      .then(({ data }) => {
+        if (data) setTotalDownloads(data.total_downloads);
+      });
+  }, []);
+
+  const incrementDownloads = useCallback(async () => {
+    const { data } = await supabase.rpc("increment_downloads");
+    if (typeof data === "number") setTotalDownloads(data);
+  }, []);
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -381,8 +402,13 @@ export default function TikTokDownloader() {
               Paste a link · Pick quality · Save HD MP4
             </p>
           </div>
-        </div>
-
+          </div>
+          {totalDownloads !== null && (
+            <div className="flex items-center justify-center gap-1.5 text-xs text-dim font-mono">
+              <TrendingUp className="w-3.5 h-3.5 text-primary" />
+              <span className="text-heading font-semibold">{formatCount(totalDownloads)}</span> videos downloaded worldwide
+            </div>
+          )}
         {/* Input */}
         <form onSubmit={handleFetch} className="relative group space-y-2">
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
@@ -479,6 +505,7 @@ export default function TikTokDownloader() {
                     <DownloadActions
                       downloadUrl={downloadUrl}
                       qualityCount={qualities.length}
+                      onDownload={incrementDownloads}
                     />
                   </div>
                 </div>

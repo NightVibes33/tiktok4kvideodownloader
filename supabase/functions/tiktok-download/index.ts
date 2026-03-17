@@ -13,16 +13,23 @@ Deno.serve(async (req) => {
     let filename: string | null = null;
     let cookies: string | null = null;
 
-    if (req.method === 'GET') {
-      const url = new URL(req.url);
-      videoUrl = url.searchParams.get('videoUrl');
-      filename = url.searchParams.get('filename');
-      cookies = url.searchParams.get('cookies');
-    } else {
-      const body = await req.json();
-      videoUrl = body.videoUrl;
-      filename = body.filename;
-      cookies = body.cookies;
+    const parsedUrl = new URL(req.url);
+
+    // Always check query params first (works for both GET and POST with query strings)
+    videoUrl = parsedUrl.searchParams.get('videoUrl');
+    filename = parsedUrl.searchParams.get('filename');
+    cookies = parsedUrl.searchParams.get('cookies');
+
+    // If not in query params and body exists, try JSON body
+    if (!videoUrl && req.method === 'POST') {
+      try {
+        const body = await req.json();
+        videoUrl = body.videoUrl || videoUrl;
+        filename = body.filename || filename;
+        cookies = body.cookies || cookies;
+      } catch {
+        // Body wasn't JSON, ignore
+      }
     }
 
     if (!videoUrl) {

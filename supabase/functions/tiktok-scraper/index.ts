@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
             avatarThumb: authorModule?.avatarThumb || '',
           },
         };
-        const result = buildResult(itemWithAuthor, item.video);
+        const result = buildResult(itemWithAuthor, item.video, cookies);
         console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
         return new Response(
           JSON.stringify(result),

@@ -452,27 +452,40 @@ export default function TikTokDownloader() {
         <AdBanner />
 
         {/* FAQ */}
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-heading text-center">Frequently Asked Questions</h2>
-          {[
+        {(() => {
+          const faqs = [
             { q: "How does this work?", a: "Paste a TikTok video link and we extract the direct MP4 stream from TikTok's servers. No account or login required." },
             { q: "What formats are supported?", a: "Videos are downloaded as MP4 files, which play on virtually every device and platform." },
             { q: "Is the watermark removed?", a: "Yes — we fetch the original HD source without the TikTok watermark whenever available." },
             { q: "Is it free?", a: "100% free with no limits. If you find it useful, consider buying us a coffee!" },
             { q: "Does it work on iPhone?", a: "Yes! On iOS the download button prepares the file so you can save it to your camera roll or share it directly." },
             { q: "Why did my download fail?", a: "Some videos are private, region-locked, or have expired links. Try refreshing the extraction or check if the video is still public on TikTok." },
-          ].map(({ q, a }) => (
-            <details key={q} className="group rounded-2xl bg-secondary/50 ring-1 ring-border/50 overflow-hidden">
-              <summary className="px-4 py-3.5 text-sm font-medium text-heading cursor-pointer flex items-center justify-between list-none">
-                {q}
-                <ChevronDown className="w-4 h-4 text-dim transition-transform duration-200 group-open:rotate-180" />
-              </summary>
-              <div className="px-4 pb-4 text-sm text-body leading-relaxed">
-                {a}
-              </div>
-            </details>
-          ))}
-        </section>
+          ];
+          const jsonLd = {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: faqs.map(({ q, a }) => ({
+              "@type": "Question",
+              name: q,
+              acceptedAnswer: { "@type": "Answer", text: a },
+            })),
+          };
+          return (
+            <section className="space-y-3">
+              <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+              <h2 className="text-lg font-bold text-heading text-center">Frequently Asked Questions</h2>
+              {faqs.map(({ q, a }) => (
+                <details key={q} className="group rounded-2xl bg-secondary/50 ring-1 ring-border/50 overflow-hidden">
+                  <summary className="px-4 py-3.5 text-sm font-medium text-heading cursor-pointer flex items-center justify-between list-none">
+                    {q}
+                    <ChevronDown className="w-4 h-4 text-dim transition-transform duration-200 group-open:rotate-180" />
+                  </summary>
+                  <div className="px-4 pb-4 text-sm text-body leading-relaxed">{a}</div>
+                </details>
+              ))}
+            </section>
+          );
+        })()}
 
         {/* Footer */}
         <footer className="text-center pb-6">

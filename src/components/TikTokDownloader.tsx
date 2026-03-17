@@ -208,6 +208,7 @@ function DownloadActions({
   qualityCount: number;
 }) {
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -215,7 +216,6 @@ function DownloadActions({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback: select a temp input
       const el = document.createElement("textarea");
       el.value = downloadUrl;
       document.body.appendChild(el);
@@ -227,17 +227,48 @@ function DownloadActions({
     }
   }, [downloadUrl]);
 
+  const handleDownload = useCallback(async () => {
+    if (!downloadUrl || downloading) return;
+
+    if (!isIOSDevice()) {
+      window.open(downloadUrl, "_top", "noopener,noreferrer");
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error("Failed to download video");
+      }
+
+      const blob = await response.blob();
+      const file = new File([blob], "tiktok-video.mp4", { type: blob.type || "video/mp4" });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "TikTok Video" });
+      } else {
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, "_blank", "noopener,noreferrer");
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch {
+      window.open(downloadUrl, "_top", "noopener,noreferrer");
+    } finally {
+      setDownloading(false);
+    }
+  }, [downloadUrl, downloading]);
+
   return (
     <div className="space-y-3">
-      <a
-        href={downloadUrl}
-        target="_top"
-        rel="noopener noreferrer"
-        className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
+      <button
+        onClick={handleDownload}
+        disabled={!downloadUrl || downloading}
+        className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 disabled:bg-secondary text-accent-foreground disabled:text-muted-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
       >
-        <Download className="w-4 h-4" />
-        Download Video
-      </a>
+        {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {downloading ? "Preparing Download" : "Download Video"}
+      </button>
 
       <button
         onClick={handleCopy}
@@ -251,7 +282,7 @@ function DownloadActions({
         {qualityCount} quality option{qualityCount !== 1 ? "s" : ""} · no watermark
       </p>
       <p className="text-xs text-center text-dim">
-        On iPhone: tap Download, then open the link in Safari if prompted.
+        On iPhone, Download now prepares the file first so it can be saved or shared correctly.
       </p>
     </div>
   );

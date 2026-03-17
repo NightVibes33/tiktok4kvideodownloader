@@ -11,18 +11,15 @@ Deno.serve(async (req) => {
   try {
     let videoUrl: string | null = null;
     let filename: string | null = null;
-    let cookies: string | null = null;
 
     if (req.method === 'GET') {
       const url = new URL(req.url);
       videoUrl = url.searchParams.get('videoUrl');
       filename = url.searchParams.get('filename');
-      cookies = url.searchParams.get('cookies');
     } else {
       const body = await req.json();
       videoUrl = body.videoUrl;
       filename = body.filename;
-      cookies = body.cookies;
     }
 
     if (!videoUrl) {
@@ -32,22 +29,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    const fetchHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Referer': 'https://www.tiktok.com/',
-      'Accept': '*/*',
-      'Accept-Language': 'en-US,en;q=0.9',
-      'Range': 'bytes=0-',
-    };
-
-    if (cookies) {
-      fetchHeaders['Cookie'] = cookies;
-    }
-
-    const response = await fetch(videoUrl, { headers: fetchHeaders, redirect: 'follow' });
+    // Fetch from the direct download URL provided by tiktok-api-dl
+    const response = await fetch(videoUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Referer': 'https://www.tiktok.com/',
+        'Accept': '*/*',
+      },
+      redirect: 'follow',
+    });
 
     if (!response.ok && response.status !== 206) {
-      console.error(`TikTok CDN responded with ${response.status}`);
+      console.error(`Upstream responded with ${response.status}`);
       return new Response(
         JSON.stringify({ error: `Failed to fetch video: ${response.status}` }),
         { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

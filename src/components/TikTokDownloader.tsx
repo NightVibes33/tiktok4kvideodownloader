@@ -52,34 +52,6 @@ export default function TikTokDownloader() {
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const handleDownload = () => {
-    if (!videoData) return;
-    const quality = videoData.qualities[selectedQuality] || { url: videoData.video.url };
-    if (!quality.url) return;
-
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const params = new URLSearchParams({
-      videoUrl: quality.url,
-      filename: `tiktok-${videoData.id}.mp4`,
-      apikey: anonKey,
-    });
-    if (videoData.cookies) {
-      params.set('cookies', videoData.cookies);
-    }
-    const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
-
-    const userAgent = navigator.userAgent || "";
-    const isIos = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const isSafari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
-
-    if (isIos && isSafari) {
-      window.location.assign(proxyUrl);
-      return;
-    }
-
-    window.open(proxyUrl, "_blank", "noopener,noreferrer");
-  };
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -34,8 +34,8 @@ interface VideoData {
     commentCount?: number;
     shareCount?: number;
     playCount?: number;
-    likeCount?: number;
   };
+  cookies: string;
 }
 
 function formatCount(num?: number): string {

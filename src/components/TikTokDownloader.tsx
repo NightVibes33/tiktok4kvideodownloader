@@ -241,6 +241,9 @@ export default function TikTokDownloader() {
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
                       {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} · no watermark
                     </p>
+                    <p className="text-xs text-center text-dim">
+                      If iPhone shows a prompt, tap Download to leave the preview and save in Safari.
+                    </p>
                   </div>
                 </div>
               </div>

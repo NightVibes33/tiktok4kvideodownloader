@@ -35,6 +35,7 @@ interface VideoData {
     shareCount?: number;
     playCount?: number;
   };
+  cookies: string;
 }
 
 function formatCount(num?: number): string {
@@ -54,24 +55,22 @@ export default function TikTokDownloader() {
 
   const handleDownload = () => {
     if (!videoData) return;
-
-    const selectedOption = videoData.qualities[selectedQuality] || { url: videoData.video.url, watermark: false };
-    if (!selectedOption.url) return;
+    const quality = videoData.qualities[selectedQuality] || { url: videoData.video.url };
+    if (!quality.url) return;
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?videoUrl=${encodeURIComponent(selectedOption.url)}&filename=${encodeURIComponent(`tiktok-${videoData.id}.mp4`)}&apikey=${anonKey}`;
-
-    const userAgent = navigator.userAgent || "";
-    const isIos = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const isSafari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
-
-    if (isIos && isSafari) {
-      const iosOption = videoData.qualities.find((option) => option.watermark) || selectedOption;
-      window.location.assign(iosOption.url);
-      return;
+    const params = new URLSearchParams({
+      videoUrl: quality.url,
+      filename: `tiktok-${videoData.id}.mp4`,
+      apikey: anonKey,
+    });
+    if (videoData.cookies) {
+      params.set('cookies', videoData.cookies);
     }
+    const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
 
+    // Always use proxy — it forwards TikTok session cookies for auth
     window.open(proxyUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -100,7 +99,7 @@ export default function TikTokDownloader() {
     }
   };
 
-  const qualities = videoData?.qualities || [];
+  const qualities = (videoData?.qualities || []).filter(q => !q.watermark);
 
   return (
     <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-6 flex flex-col items-center justify-center">
@@ -241,10 +240,7 @@ export default function TikTokDownloader() {
                       Save to Device
                     </button>
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
-                      {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} available
-                    </p>
-                    <p className="text-xs text-center text-dim">
-                      On iPhone/iPad, TikTok may open the video first — use Share → Save Video.
+                      {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} · no watermark
                     </p>
                   </div>
                 </div>

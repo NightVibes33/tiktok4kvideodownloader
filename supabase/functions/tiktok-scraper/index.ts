@@ -112,7 +112,7 @@ function extractQualities(video: any): QualityOption[] {
   return qualities;
 }
 
-function buildResult(itemInfo: any, parsedVideo: any) {
+function buildResult(itemInfo: any, parsedVideo: any, cookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
 
@@ -141,6 +141,7 @@ function buildResult(itemInfo: any, parsedVideo: any) {
     },
     qualities,
     stats: itemInfo?.stats || {},
+    cookies,
   };
 }
 
@@ -175,6 +176,13 @@ Deno.serve(async (req) => {
     };
 
     const response = await fetch(url, { headers, redirect: 'follow' });
+    
+    // Capture cookies from TikTok response for use in download proxy
+    const setCookieHeaders = response.headers.getSetCookie?.() || [];
+    const cookies = setCookieHeaders
+      .map((c: string) => c.split(';')[0])
+      .join('; ');
+    
     const html = await response.text();
 
     // Try multiple hydration patterns
@@ -208,7 +216,7 @@ Deno.serve(async (req) => {
     if (videoDetail && videoDetail.statusCode === 0) {
       const itemInfo = videoDetail.itemInfo?.itemStruct;
       if (itemInfo) {
-        const result = buildResult(itemInfo, null);
+        const result = buildResult(itemInfo, null, cookies);
         console.log(`Extracted ${result.qualities.length} quality options`);
         return new Response(
           JSON.stringify(result),
@@ -232,7 +240,7 @@ Deno.serve(async (req) => {
             avatarThumb: authorModule?.avatarThumb || '',
           },
         };
-        const result = buildResult(itemWithAuthor, item.video);
+        const result = buildResult(itemWithAuthor, item.video, cookies);
         console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
         return new Response(
           JSON.stringify(result),

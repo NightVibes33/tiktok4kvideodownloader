@@ -69,6 +69,15 @@ export default function TikTokDownloader() {
     }
     const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
 
+    const userAgent = navigator.userAgent || "";
+    const isIos = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isSafari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
+
+    if (isIos && isSafari) {
+      window.location.assign(proxyUrl);
+      return;
+    }
+
     window.open(proxyUrl, "_blank", "noopener,noreferrer");
   };
 
@@ -235,7 +244,7 @@ export default function TikTokDownloader() {
                       className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
                     >
                       <Download className="w-4 h-4" />
-                      Save to Device
+                      Download Video
                     </button>
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
                       {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} · no watermark

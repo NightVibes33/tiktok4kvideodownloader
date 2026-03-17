@@ -229,6 +229,7 @@ function DownloadActions({
     if (!downloadUrl || downloading) return;
 
     if (!isIOSDevice()) {
+      onDownload?.();
       window.open(downloadUrl, "_top", "noopener,noreferrer");
       return;
     }

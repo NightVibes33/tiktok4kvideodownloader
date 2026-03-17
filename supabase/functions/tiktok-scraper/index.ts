@@ -216,7 +216,7 @@ Deno.serve(async (req) => {
     if (videoDetail && videoDetail.statusCode === 0) {
       const itemInfo = videoDetail.itemInfo?.itemStruct;
       if (itemInfo) {
-        const result = buildResult(itemInfo, null);
+        const result = buildResult(itemInfo, null, cookies);
         console.log(`Extracted ${result.qualities.length} quality options`);
         return new Response(
           JSON.stringify(result),

@@ -1,6 +1,8 @@
-import { useState } from "react";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+/* ── Types ── */
 
 interface QualityOption {
   label: string;
@@ -38,6 +40,8 @@ interface VideoData {
   cookies: string;
 }
 
+/* ── Helpers ── */
+
 function formatCount(num?: number): string {
   if (!num) return "0";
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M";
@@ -45,13 +49,181 @@ function formatCount(num?: number): string {
   return num.toString();
 }
 
+function buildDownloadUrl(videoData: VideoData, quality: QualityOption): string {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const params = new URLSearchParams({
+    videoUrl: quality.url,
+    filename: `tiktok-${videoData.id}.mp4`,
+    apikey: anonKey,
+  });
+  if (videoData.cookies) {
+    params.set("cookies", videoData.cookies);
+  }
+  return `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
+}
+
+/* ── Sub-components ── */
+
+function VideoPreview({ cover }: { cover: string }) {
+  return (
+    <div className="relative w-full md:w-48 aspect-[9/16] bg-secondary shrink-0">
+      {cover && (
+        <img src={cover} alt="Video cover" className="w-full h-full object-cover" />
+      )}
+      <div className="absolute inset-0 flex items-center justify-center bg-background/20">
+        <Play className="w-8 h-8 text-accent-foreground fill-accent-foreground/20" />
+      </div>
+    </div>
+  );
+}
+
+function AuthorInfo({ author }: { author: VideoData["author"] }) {
+  return (
+    <div className="flex items-center gap-3">
+      {author.avatar && (
+        <img
+          src={author.avatar}
+          className="w-8 h-8 rounded-full ring-1 ring-border"
+          alt={`@${author.username}`}
+        />
+      )}
+      <div>
+        <p className="text-sm font-medium text-heading">@{author.username}</p>
+        <p className="text-xs text-dim">{author.nickname}</p>
+      </div>
+    </div>
+  );
+}
+
+function StatsRow({ stats }: { stats: VideoData["stats"] }) {
+  return (
+    <div className="flex gap-4 text-[11px] font-mono uppercase tracking-wider text-dim tabular">
+      <div className="flex items-center gap-1">
+        <Heart className="w-3 h-3" /> {formatCount(stats.diggCount)}
+      </div>
+      <div className="flex items-center gap-1">
+        <MessageCircle className="w-3 h-3" /> {formatCount(stats.commentCount)}
+      </div>
+      <div className="flex items-center gap-1">
+        <Share2 className="w-3 h-3" /> {formatCount(stats.shareCount)}
+      </div>
+    </div>
+  );
+}
+
+function QualitySelector({
+  qualities,
+  selectedQuality,
+  onSelect,
+  fallbackLabel,
+}: {
+  qualities: QualityOption[];
+  selectedQuality: number;
+  onSelect: (i: number) => void;
+  fallbackLabel: string;
+}) {
+  if (qualities.length > 1) {
+    return (
+      <div className="relative">
+        <label className="text-[10px] text-dim uppercase tracking-widest mb-1 block">
+          Quality
+        </label>
+        <div className="relative">
+          <select
+            value={selectedQuality}
+            onChange={(e) => onSelect(Number(e.target.value))}
+            className="w-full appearance-none bg-secondary ring-1 ring-border rounded-lg px-3 py-2.5 pr-8 text-sm text-heading tabular outline-none focus:ring-2 focus:ring-accent/50 transition-all ease-expo duration-200 cursor-pointer"
+          >
+            {qualities.map((q, i) => (
+              <option key={i} value={i}>
+                {q.label}
+                {q.width > 0 && q.height > 0 ? ` — ${q.width}×${q.height}` : ""}
+                {q.bitrate > 0 ? ` · ${Math.round(q.bitrate / 1000)}kbps` : ""}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary text-xs tabular">
+      <span className="text-dim uppercase tracking-wider">Quality</span>
+      <span className="text-heading font-medium">
+        {qualities[0]?.label || fallbackLabel}
+      </span>
+    </div>
+  );
+}
+
+function DownloadActions({
+  downloadUrl,
+  qualityCount,
+}: {
+  downloadUrl: string;
+  qualityCount: number;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(downloadUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select a temp input
+      const el = document.createElement("textarea");
+      el.value = downloadUrl;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [downloadUrl]);
+
+  return (
+    <div className="space-y-3">
+      <a
+        href={downloadUrl}
+        target="_top"
+        rel="noopener noreferrer"
+        className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
+      >
+        <Download className="w-4 h-4" />
+        Download Video
+      </a>
+
+      <button
+        onClick={handleCopy}
+        className="w-full flex items-center justify-center gap-2 py-2.5 bg-secondary hover:bg-secondary/80 text-heading rounded-xl text-sm font-medium transition-colors ease-expo duration-200 ring-1 ring-border"
+      >
+        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        {copied ? "Copied!" : "Copy Download Link"}
+      </button>
+
+      <p className="text-[10px] text-center text-dim uppercase tracking-widest">
+        {qualityCount} quality option{qualityCount !== 1 ? "s" : ""} · no watermark
+      </p>
+      <p className="text-xs text-center text-dim">
+        On iPhone: tap Download, then open the link in Safari if prompted.
+      </p>
+    </div>
+  );
+}
+
+/* ── Main Component ── */
+
 export default function TikTokDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +241,9 @@ export default function TikTokDownloader() {
 
       if (fnError) throw new Error(fnError.message);
       if (data?.error) throw new Error(data.error);
+      if (!data?.qualities?.length && !data?.video?.url) {
+        throw new Error("No downloadable video found. The video may be private or region-locked.");
+      }
 
       setVideoData(data);
     } catch (err: any) {
@@ -79,27 +254,11 @@ export default function TikTokDownloader() {
   };
 
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
-  const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities[0] || null;
-  const downloadUrl = (() => {
-    if (!videoData || !activeQuality?.url) return "";
-
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const params = new URLSearchParams({
-      videoUrl: activeQuality.url,
-      filename: `tiktok-${videoData.id}.mp4`,
-      apikey: anonKey,
-    });
-
-    if (videoData.cookies) {
-      params.set("cookies", videoData.cookies);
-    }
-
-    return `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
-  })();
+  const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
+  const downloadUrl = videoData && activeQuality ? buildDownloadUrl(videoData, activeQuality) : "";
 
   return (
-    <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-6 flex flex-col items-center justify-center">
+    <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-4 sm:p-6 flex flex-col items-center justify-center">
       <div className="w-full max-w-xl space-y-8">
         {/* Header */}
         <div className="space-y-2 text-center">
@@ -117,7 +276,9 @@ export default function TikTokDownloader() {
             <Link2 className="w-4 h-4 text-muted-foreground group-focus-within:text-accent transition-colors ease-expo duration-200" />
           </div>
           <input
-            type="text"
+            type="url"
+            inputMode="url"
+            autoComplete="url"
             placeholder="https://www.tiktok.com/@user/video/..."
             className="w-full bg-secondary border-0 ring-1 ring-border focus:ring-2 focus:ring-accent/50 rounded-xl py-4 pl-11 pr-32 text-heading placeholder:text-muted-foreground transition-all ease-expo duration-200 outline-none"
             value={url}
@@ -134,7 +295,7 @@ export default function TikTokDownloader() {
 
         {/* Error */}
         {error && (
-          <div className="p-4 bg-accent/10 ring-1 ring-accent/20 rounded-xl text-accent text-sm">
+          <div className="p-4 bg-destructive/10 ring-1 ring-destructive/20 rounded-xl text-destructive text-sm">
             {error}
           </div>
         )}
@@ -144,38 +305,11 @@ export default function TikTokDownloader() {
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="surface-elevated rounded-2xl overflow-hidden">
               <div className="flex flex-col md:flex-row">
-                {/* Preview */}
-                <div className="relative w-full md:w-48 aspect-[9/16] bg-secondary">
-                  {videoData.video.cover && (
-                    <img
-                      src={videoData.video.cover}
-                      alt="Video cover"
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                  <div className="absolute inset-0 flex items-center justify-center bg-background/20">
-                    <Play className="w-8 h-8 text-accent-foreground fill-accent-foreground/20" />
-                  </div>
-                </div>
+                <VideoPreview cover={videoData.video.cover} />
 
-                {/* Info */}
-                <div className="flex-1 p-6 flex flex-col justify-between">
+                <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between gap-4">
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3">
-                      {videoData.author.avatar && (
-                        <img
-                          src={videoData.author.avatar}
-                          className="w-8 h-8 rounded-full ring-1 ring-border"
-                          alt=""
-                        />
-                      )}
-                      <div>
-                        <p className="text-sm font-medium text-heading">
-                          @{videoData.author.username}
-                        </p>
-                        <p className="text-xs text-dim">{videoData.author.nickname}</p>
-                      </div>
-                    </div>
+                    <AuthorInfo author={videoData.author} />
 
                     {videoData.description && (
                       <p className="text-sm text-body line-clamp-3 leading-relaxed">
@@ -183,67 +317,21 @@ export default function TikTokDownloader() {
                       </p>
                     )}
 
-                    <div className="flex gap-4 text-[11px] font-mono uppercase tracking-wider text-dim tabular">
-                      <div className="flex items-center gap-1">
-                        <Heart className="w-3 h-3" /> {formatCount(videoData.stats.diggCount)}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MessageCircle className="w-3 h-3" /> {formatCount(videoData.stats.commentCount)}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Share2 className="w-3 h-3" /> {formatCount(videoData.stats.shareCount)}
-                      </div>
-                    </div>
+                    <StatsRow stats={videoData.stats} />
                   </div>
 
-                  <div className="mt-6 space-y-3">
-                    {/* Quality Selector */}
-                    {qualities.length > 1 ? (
-                      <div className="relative">
-                        <label className="text-[10px] text-dim uppercase tracking-widest mb-1 block">
-                          Quality
-                        </label>
-                        <div className="relative">
-                          <select
-                            value={selectedQuality}
-                            onChange={(e) => setSelectedQuality(Number(e.target.value))}
-                            className="w-full appearance-none bg-secondary ring-1 ring-border rounded-lg px-3 py-2.5 pr-8 text-sm text-heading tabular outline-none focus:ring-2 focus:ring-accent/50 transition-all ease-expo duration-200 cursor-pointer"
-                          >
-                            {qualities.map((q, i) => (
-                              <option key={i} value={i}>
-                                {q.label}
-                                {q.width > 0 && q.height > 0 ? ` — ${q.width}×${q.height}` : ""}
-                                {q.bitrate > 0 ? ` · ${Math.round(q.bitrate / 1000)}kbps` : ""}
-                              </option>
-                            ))}
-                          </select>
-                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary text-xs tabular">
-                        <span className="text-dim uppercase tracking-wider">Quality</span>
-                        <span className="text-heading font-medium">
-                          {qualities[0]?.label || videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
-                        </span>
-                      </div>
-                    )}
+                  <div className="space-y-3">
+                    <QualitySelector
+                      qualities={qualities}
+                      selectedQuality={selectedQuality}
+                      onSelect={setSelectedQuality}
+                      fallbackLabel={videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
+                    />
 
-                    <a
-                      href={downloadUrl}
-                      target="_top"
-                      rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
-                    >
-                      <Download className="w-4 h-4" />
-                      Download Video
-                    </a>
-                    <p className="text-[10px] text-center text-dim uppercase tracking-widest">
-                      {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} · no watermark
-                    </p>
-                    <p className="text-xs text-center text-dim">
-                      If iPhone shows a prompt, tap Download to leave the preview and save in Safari.
-                    </p>
+                    <DownloadActions
+                      downloadUrl={downloadUrl}
+                      qualityCount={qualities.length}
+                    />
                   </div>
                 </div>
               </div>

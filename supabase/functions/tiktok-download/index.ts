@@ -15,20 +15,20 @@ Deno.serve(async (req) => {
 
     const parsedUrl = new URL(req.url);
 
-    // Always check query params first (works for both GET and POST with query strings)
+    // Query params (GET or POST with query string)
     videoUrl = parsedUrl.searchParams.get('videoUrl');
     filename = parsedUrl.searchParams.get('filename');
     cookies = parsedUrl.searchParams.get('cookies');
 
-    // If not in query params and body exists, try JSON body
+    // POST body fallback
     if (!videoUrl && req.method === 'POST') {
       try {
         const body = await req.json();
-        videoUrl = body.videoUrl || videoUrl;
-        filename = body.filename || filename;
-        cookies = body.cookies || cookies;
+        videoUrl = body.videoUrl || null;
+        filename = body.filename || null;
+        cookies = body.cookies || null;
       } catch {
-        // Body wasn't JSON, ignore
+        // Not JSON — ignore
       }
     }
 
@@ -38,6 +38,8 @@ Deno.serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`Proxying video: ${videoUrl.substring(0, 80)}...`);
 
     const fetchHeaders: Record<string, string> = {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -54,17 +56,14 @@ Deno.serve(async (req) => {
     const response = await fetch(videoUrl, { headers: fetchHeaders, redirect: 'follow' });
 
     if (!response.ok && response.status !== 206) {
-      console.error(`TikTok CDN responded with ${response.status}`);
+      const errorText = await response.text();
+      console.error(`TikTok CDN error ${response.status}: ${errorText.substring(0, 200)}`);
       return new Response(
-        JSON.stringify({ error: `Failed to fetch video: ${response.status}` }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: `Video source returned ${response.status}. The link may have expired — try extracting again.` }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const videoBody = response.body;
-    const contentLength = response.headers.get('content-length');
-    const contentRange = response.headers.get('content-range');
-    const acceptRanges = response.headers.get('accept-ranges');
     const safeName = filename || 'tiktok-video.mp4';
 
     const headers: Record<string, string> = {
@@ -73,21 +72,23 @@ Deno.serve(async (req) => {
       'Content-Disposition': `attachment; filename="${safeName}"`,
     };
 
-    if (contentLength) {
-      headers['Content-Length'] = contentLength;
-    }
-    if (contentRange) {
-      headers['Content-Range'] = contentRange;
-    }
-    if (acceptRanges) {
-      headers['Accept-Ranges'] = acceptRanges;
-    }
+    // Forward range/length headers for iOS Safari compatibility
+    const contentLength = response.headers.get('content-length');
+    const contentRange = response.headers.get('content-range');
+    const acceptRanges = response.headers.get('accept-ranges');
 
-    return new Response(videoBody, { status: response.status === 206 ? 206 : 200, headers });
+    if (contentLength) headers['Content-Length'] = contentLength;
+    if (contentRange) headers['Content-Range'] = contentRange;
+    if (acceptRanges) headers['Accept-Ranges'] = acceptRanges;
+
+    return new Response(response.body, {
+      status: response.status === 206 ? 206 : 200,
+      headers,
+    });
   } catch (error) {
     console.error('Proxy error:', error);
     return new Response(
-      JSON.stringify({ error: 'Failed to proxy video' }),
+      JSON.stringify({ error: 'Failed to proxy video. Please try again.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

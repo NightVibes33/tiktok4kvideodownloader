@@ -235,6 +235,7 @@ function DownloadActions({
     }
 
     setDownloading(true);
+    onDownload?.();
     try {
       const response = await fetch(downloadUrl);
       if (!response.ok) throw new Error("Failed to download video");

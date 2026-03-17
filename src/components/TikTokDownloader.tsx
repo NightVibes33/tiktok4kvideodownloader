@@ -78,7 +78,25 @@ export default function TikTokDownloader() {
     }
   };
 
-  const qualities = (videoData?.qualities || []).filter(q => !q.watermark);
+  const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
+  const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities[0] || null;
+  const downloadUrl = (() => {
+    if (!videoData || !activeQuality?.url) return "";
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const params = new URLSearchParams({
+      videoUrl: activeQuality.url,
+      filename: `tiktok-${videoData.id}.mp4`,
+      apikey: anonKey,
+    });
+
+    if (videoData.cookies) {
+      params.set("cookies", videoData.cookies);
+    }
+
+    return `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
+  })();
 
   return (
     <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-6 flex flex-col items-center justify-center">

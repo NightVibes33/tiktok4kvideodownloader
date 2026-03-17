@@ -52,36 +52,18 @@ export default function TikTokDownloader() {
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!videoData) return;
     const quality = videoData.qualities[selectedQuality] || { url: videoData.video.url };
     if (!quality.url) return;
 
-    setDownloading(true);
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke("tiktok-download", {
-        body: {
-          videoUrl: quality.url,
-          filename: `tiktok-${videoData.id}.mp4`,
-        },
-      });
+    // Build direct proxy URL — works on iOS Safari without blob workarounds
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?videoUrl=${encodeURIComponent(quality.url)}&filename=${encodeURIComponent(`tiktok-${videoData.id}.mp4`)}&apikey=${anonKey}`;
 
-      if (fnError) throw new Error(fnError.message);
-
-      const blob = data instanceof Blob ? data : new Blob([data], { type: "video/mp4" });
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = `tiktok-${videoData.id}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-    } catch (err: any) {
-      setError("Download failed: " + (err.message || "Unknown error"));
-    } finally {
-      setDownloading(false);
-    }
+    // Open in new tab — iOS Safari will show native download/play dialog
+    window.open(proxyUrl, "_blank");
   };
 
   const handleFetch = async (e: React.FormEvent) => {

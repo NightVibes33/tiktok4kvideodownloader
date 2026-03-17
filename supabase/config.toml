@@ -1,1 +1,7 @@
 project_id = "ejqqrsxnxunfnmjwtrcp"
+
+[functions.tiktok-scraper]
+verify_jwt = false
+
+[functions.tiktok-download]
+verify_jwt = false

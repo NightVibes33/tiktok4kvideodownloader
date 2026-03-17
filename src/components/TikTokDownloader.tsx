@@ -244,7 +244,7 @@ export default function TikTokDownloader() {
                       className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
                     >
                       <Download className="w-4 h-4" />
-                      Save to Device
+                      Download Video
                     </button>
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
                       {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} · no watermark

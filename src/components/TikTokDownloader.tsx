@@ -69,6 +69,15 @@ export default function TikTokDownloader() {
     }
     const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
 
+    const userAgent = navigator.userAgent || "";
+    const isIos = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isSafari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
+
+    if (isIos && isSafari) {
+      window.location.assign(proxyUrl);
+      return;
+    }
+
     window.open(proxyUrl, "_blank", "noopener,noreferrer");
   };
 

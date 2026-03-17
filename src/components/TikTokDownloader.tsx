@@ -37,8 +37,39 @@ function formatCount(num?: number): string {
 export default function TikTokDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDownload = async () => {
+    if (!videoData) return;
+    setDownloading(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("tiktok-download", {
+        body: {
+          videoUrl: videoData.video.url,
+          filename: `tiktok-${videoData.id}.mp4`,
+        },
+      });
+
+      if (fnError) throw new Error(fnError.message);
+
+      // data is already a Blob from the function response
+      const blob = data instanceof Blob ? data : new Blob([data], { type: "video/mp4" });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `tiktok-${videoData.id}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err: any) {
+      setError("Download failed: " + (err.message || "Unknown error"));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,22 +194,29 @@ export default function TikTokDownloader() {
                   </div>
 
                   <div className="mt-8 space-y-3">
-                    <a
-                      href={videoData.video.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
+                    <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary text-xs tabular">
+                      <span className="text-dim uppercase tracking-wider">Quality</span>
+                      <span className="text-heading font-medium">
+                        {videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
+                        {videoData.video.width > 0 && videoData.video.height > 0 && videoData.video.ratio && (
+                          <span className="text-dim ml-2">({videoData.video.width}×{videoData.video.height})</span>
+                        )}
+                      </span>
+                    </div>
+                    <button
+                      onClick={handleDownload}
+                      disabled={downloading}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
                     >
-                      <Download className="w-4 h-4" />
-                      Download MP4
-                      {videoData.video.width > 0 && videoData.video.height > 0 && (
-                        <span className="text-accent-foreground/70 text-xs">
-                          ({videoData.video.width}×{videoData.video.height})
-                        </span>
+                      {downloading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
                       )}
-                    </a>
+                      {downloading ? "Downloading…" : "Save to Device"}
+                    </button>
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
-                      Direct stream link generated
+                      Proxied download · works on iOS Safari
                     </p>
                   </div>
                 </div>

@@ -49,7 +49,7 @@ function formatCount(num?: number): string {
   return num.toString();
 }
 
-function buildDownloadUrl(videoData: VideoData, quality: QualityOption): string {
+function buildVideoProxyUrl(videoData: VideoData, quality: QualityOption, download = false): string {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const params = new URLSearchParams({
@@ -57,10 +57,19 @@ function buildDownloadUrl(videoData: VideoData, quality: QualityOption): string 
     filename: `tiktok-${videoData.id}.mp4`,
     apikey: anonKey,
   });
+  if (download) {
+    params.set("download", "1");
+  }
   if (videoData.cookies) {
     params.set("cookies", videoData.cookies);
   }
   return `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
+}
+
+function isIOSDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
 /* ── Sub-components ── */

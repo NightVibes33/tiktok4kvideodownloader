@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check } from "lucide-react";
+import AdBanner from "./AdBanner";
 import { supabase } from "@/integrations/supabase/client";
 
 /* ── Types ── */

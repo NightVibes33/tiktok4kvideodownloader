@@ -418,6 +418,8 @@ export default function TikTokDownloader() {
             </div>
           </div>
         )}
+
+        <AdBanner />
       </div>
     </main>
   );

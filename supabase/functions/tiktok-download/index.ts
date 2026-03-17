@@ -12,12 +12,14 @@ Deno.serve(async (req) => {
     let videoUrl: string | null = null;
     let filename: string | null = null;
     let cookies: string | null = null;
+    let shouldDownload = false;
 
     const parsedUrl = new URL(req.url);
 
     videoUrl = parsedUrl.searchParams.get('videoUrl');
     filename = parsedUrl.searchParams.get('filename');
     cookies = parsedUrl.searchParams.get('cookies');
+    shouldDownload = parsedUrl.searchParams.get('download') === '1';
 
     if (!videoUrl && req.method === 'POST') {
       try {
@@ -25,6 +27,7 @@ Deno.serve(async (req) => {
         videoUrl = body.videoUrl || null;
         filename = body.filename || null;
         cookies = body.cookies || null;
+        shouldDownload = body.download === true;
       } catch {
         // Ignore non-JSON body
       }
@@ -73,7 +76,8 @@ Deno.serve(async (req) => {
     const safeName = filename || 'tiktok-video.mp4';
     const headers = new Headers(corsHeaders);
     headers.set('Content-Type', upstreamResponse.headers.get('content-type') || 'video/mp4');
-    headers.set('Content-Disposition', `attachment; filename="${safeName}"`);
+    headers.set('Content-Disposition', `${shouldDownload ? 'attachment' : 'inline'}; filename="${safeName}"`);
+    headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
 
     const passThroughHeaders = [
       'accept-ranges',

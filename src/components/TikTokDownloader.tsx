@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
 import { supabase } from "@/integrations/supabase/client";
@@ -325,6 +325,30 @@ export default function TikTokDownloader() {
     }
   };
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const isTikTokUrl = (text: string) => /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(text.trim());
+
+  const handlePasteFromClipboard = useCallback(async () => {
+    if (url) return;
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && isTikTokUrl(text)) {
+        setUrl(text.trim());
+      }
+    } catch { /* clipboard permission denied — ignore */ }
+  }, [url]);
+
+  const handlePasteButton = useCallback(async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setUrl(text.trim());
+        inputRef.current?.focus();
+      }
+    } catch { /* clipboard permission denied — ignore */ }
+  }, []);
+
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
   const previewUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, false) : "";
@@ -360,29 +384,61 @@ export default function TikTokDownloader() {
         </div>
 
         {/* Input */}
-        <form onSubmit={handleFetch} className="relative group">
+        <form onSubmit={handleFetch} className="relative group space-y-2">
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
           <div className="relative">
             <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-              <Link2 className="w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors ease-expo duration-200" />
+              {loading ? (
+                <Loader2 className="w-4 h-4 text-primary animate-spin" />
+              ) : (
+                <Link2 className="w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors ease-expo duration-200" />
+              )}
             </div>
             <input
+              ref={inputRef}
               type="url"
               inputMode="url"
               autoComplete="url"
               placeholder="https://www.tiktok.com/@user/video/..."
-              className="w-full bg-secondary/80 backdrop-blur-sm border-0 ring-1 ring-border focus:ring-2 focus:ring-primary/50 rounded-2xl py-4 pl-11 pr-28 text-heading placeholder:text-muted-foreground transition-all ease-expo duration-200 outline-none"
+              className="w-full bg-secondary/80 backdrop-blur-sm border-0 ring-1 ring-border focus:ring-2 focus:ring-primary/50 rounded-2xl py-4 pl-11 pr-36 text-heading placeholder:text-muted-foreground transition-all ease-expo duration-200 outline-none text-sm"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
+              onFocus={handlePasteFromClipboard}
             />
+            {url && !loading && (
+              <button
+                type="button"
+                onClick={() => { setUrl(""); setError(null); setVideoData(null); inputRef.current?.focus(); }}
+                className="absolute right-[6.5rem] top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted-foreground hover:text-heading hover:bg-secondary transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
             <button
               type="submit"
               disabled={loading || !url.trim()}
               className="absolute right-2 top-2 bottom-2 px-5 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground font-semibold rounded-xl text-sm transition-all ease-expo duration-200 flex items-center gap-2"
             >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Extract"}
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="hidden sm:inline">Extracting</span>
+                </>
+              ) : (
+                "Extract"
+              )}
             </button>
           </div>
+          {!url && !loading && !videoData && (
+            <button
+              type="button"
+              onClick={handlePasteButton}
+              className="w-full flex items-center justify-center gap-2 py-2.5 text-xs text-dim hover:text-heading rounded-xl bg-secondary/40 hover:bg-secondary/70 ring-1 ring-border/30 hover:ring-border transition-all duration-200"
+            >
+              <ClipboardPaste className="w-3.5 h-3.5" />
+              Paste from clipboard
+            </button>
+          )}
         </form>
 
         {/* Error */}

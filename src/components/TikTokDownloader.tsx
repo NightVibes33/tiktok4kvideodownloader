@@ -65,15 +65,47 @@ function buildDownloadUrl(videoData: VideoData, quality: QualityOption): string 
 
 /* ── Sub-components ── */
 
-function VideoPreview({ cover }: { cover: string }) {
+function VideoPreview({ cover, streamUrl }: { cover: string; streamUrl?: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+
+  if (playing && streamUrl && !videoError) {
+    return (
+      <div className="relative w-full md:w-48 aspect-[9/16] bg-secondary shrink-0">
+        <video
+          src={streamUrl}
+          controls
+          autoPlay
+          playsInline
+          className="w-full h-full object-contain bg-black"
+          onError={() => setVideoError(true)}
+        />
+        {videoError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-destructive/10 text-destructive text-xs p-2 text-center">
+            Video unplayable — source may be expired or blocked.
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="relative w-full md:w-48 aspect-[9/16] bg-secondary shrink-0">
       {cover && (
         <img src={cover} alt="Video cover" className="w-full h-full object-cover" />
       )}
-      <div className="absolute inset-0 flex items-center justify-center bg-background/20">
-        <Play className="w-8 h-8 text-accent-foreground fill-accent-foreground/20" />
-      </div>
+      <button
+        onClick={() => streamUrl && setPlaying(true)}
+        className="absolute inset-0 flex items-center justify-center bg-background/20 hover:bg-background/40 transition-colors cursor-pointer"
+        disabled={!streamUrl}
+      >
+        <Play className="w-10 h-10 text-accent-foreground fill-accent-foreground/30" />
+      </button>
+      {videoError && (
+        <div className="absolute bottom-0 inset-x-0 bg-destructive/90 text-destructive-foreground text-[10px] text-center py-1 font-medium">
+          Unplayable — try another quality
+        </div>
+      )}
     </div>
   );
 }
@@ -311,7 +343,7 @@ export default function TikTokDownloader() {
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="surface-elevated rounded-2xl overflow-hidden">
               <div className="flex flex-col md:flex-row">
-                <VideoPreview cover={videoData.video.cover} />
+                <VideoPreview cover={videoData.video.cover} streamUrl={downloadUrl} />
 
                 <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between gap-4">
                   <div className="space-y-4">

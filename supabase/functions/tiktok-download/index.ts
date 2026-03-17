@@ -56,16 +56,24 @@ Deno.serve(async (req) => {
 
     const videoBody = response.body;
     const contentLength = response.headers.get('content-length');
+    const contentRange = response.headers.get('content-range');
+    const acceptRanges = response.headers.get('accept-ranges');
     const safeName = filename || 'tiktok-video.mp4';
 
     const headers: Record<string, string> = {
       ...corsHeaders,
-      'Content-Type': 'video/mp4',
+      'Content-Type': response.headers.get('content-type') || 'video/mp4',
       'Content-Disposition': `attachment; filename="${safeName}"`,
     };
 
     if (contentLength) {
       headers['Content-Length'] = contentLength;
+    }
+    if (contentRange) {
+      headers['Content-Range'] = contentRange;
+    }
+    if (acceptRanges) {
+      headers['Accept-Ranges'] = acceptRanges;
     }
 
     return new Response(videoBody, { status: response.status === 206 ? 206 : 200, headers });

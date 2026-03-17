@@ -551,6 +551,13 @@ export default function TikTokDownloader() {
           </div>
         )}
 
+        <DownloadHistory
+          history={history}
+          onReuse={handleReuse}
+          onRemove={removeFromHistory}
+          onClear={clearHistory}
+        />
+
         <BuyMeCoffee />
         <AdBanner />
 

@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
 import { supabase } from "@/integrations/supabase/client";

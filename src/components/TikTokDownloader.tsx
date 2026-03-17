@@ -199,9 +199,11 @@ function QualitySelector({
 function DownloadActions({
   downloadUrl,
   qualityCount,
+  onDownload,
 }: {
   downloadUrl: string;
   qualityCount: number;
+  onDownload?: () => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);

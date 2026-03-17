@@ -333,7 +333,8 @@ export default function TikTokDownloader() {
 
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
-  const downloadUrl = videoData && activeQuality ? buildDownloadUrl(videoData, activeQuality) : "";
+  const previewUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, false) : "";
+  const downloadUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, true) : "";
 
   return (
     <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-4 sm:p-6 flex flex-col items-center justify-center">

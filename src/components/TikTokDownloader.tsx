@@ -48,7 +48,6 @@ function formatCount(num?: number): string {
 export default function TikTokDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +69,6 @@ export default function TikTokDownloader() {
     }
     const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
 
-    // Always use proxy — it forwards TikTok session cookies for auth
     window.open(proxyUrl, "_blank", "noopener,noreferrer");
   };
 

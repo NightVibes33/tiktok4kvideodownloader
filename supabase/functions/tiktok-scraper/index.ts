@@ -41,25 +41,18 @@ function extractQualities(video: any): QualityOption[] {
 
       // Normalize labels
       if (label === 'normal') label = '540p';
-      if (label === 'adapt_lowest_720_1' || label === 'adapt_720_1') label = '720p HD';
-      if (label === 'adapt_1080_1' || label === 'higher') label = '1080p HD';
-      if (label === 'adapt_2160_1' || label === 'highest') label = '4K';
+      if (label.includes('720')) label = '720p HD';
+      if (label.includes('1080')) label = '1080p HD';
+      if (label.includes('2160')) label = '4K';
 
       if (!seenLabels.has(label)) {
         seenLabels.add(label);
-        qualities.push({
-          label,
-          url: playAddr,
-          width: w,
-          height: h,
-          bitrate,
-          watermark: false,
-        });
+        qualities.push({ label, url: playAddr, width: w, height: h, bitrate, watermark: false });
       }
     }
   }
 
-  // 2. Extract from playAddr (no watermark, usually best quality)
+  // 2. Extract from playAddr (no watermark)
   const playAddrList = video?.playAddr?.UrlList || video?.PlayAddr?.UrlList || [];
   const playUrl = playAddrList[0] || (typeof video?.playAddr === 'string' ? video.playAddr : '');
   if (playUrl && !qualities.some(q => q.url === playUrl)) {
@@ -74,34 +67,11 @@ function extractQualities(video: any): QualityOption[] {
       else label = `${maxDim}p`;
     }
     if (!seenLabels.has(label + ' (no watermark)')) {
-      qualities.push({
-        label: label + ' (no watermark)',
-        url: playUrl,
-        width: w,
-        height: h,
-        bitrate: 0,
-        watermark: false,
-      });
+      qualities.push({ label: label + ' (no watermark)', url: playUrl, width: w, height: h, bitrate: 0, watermark: false });
     }
   }
 
-  // 3. Extract downloadAddr (with watermark, but reliable)
-  const dlAddrList = video?.downloadAddr?.UrlList || video?.DownloadAddr?.UrlList || [];
-  const dlUrl = dlAddrList[0] || (typeof video?.downloadAddr === 'string' ? video.downloadAddr : '');
-  if (dlUrl && !qualities.some(q => q.url === dlUrl)) {
-    const w = video?.width || video?.Width || 0;
-    const h = video?.height || video?.Height || 0;
-    qualities.push({
-      label: `${video?.ratio || 'Original'} (watermark)`,
-      url: dlUrl,
-      width: w,
-      height: h,
-      bitrate: 0,
-      watermark: true,
-    });
-  }
-
-  // Sort by bitrate descending, then by resolution
+  // Sort by resolution then bitrate
   qualities.sort((a, b) => {
     const resA = Math.max(a.width, a.height);
     const resB = Math.max(b.width, b.height);
@@ -116,11 +86,7 @@ function buildResult(itemInfo: any, parsedVideo: any, cookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
 
-  // Best URL fallback
-  const bestUrl = qualities[0]?.url
-    || video?.downloadAddr
-    || video?.playAddr
-    || '';
+  const bestUrl = qualities[0]?.url || video?.downloadAddr || video?.playAddr || '';
 
   return {
     id: itemInfo?.id || '',
@@ -160,7 +126,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch with browser-like headers
     const headers = {
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -176,18 +141,14 @@ Deno.serve(async (req) => {
     };
 
     const response = await fetch(url, { headers, redirect: 'follow' });
-    
-    // Capture cookies from TikTok response for use in download proxy
+
+    // Capture cookies for download proxy
     const setCookieHeaders = response.headers.getSetCookie?.() || [];
-    const cookies = setCookieHeaders
-      .map((c: string) => c.split(';')[0])
-      .join('; ');
-    
+    const cookies = setCookieHeaders.map((c: string) => c.split(';')[0]).join('; ');
+
     const html = await response.text();
 
-    // Try multiple hydration patterns
     let scriptData: string | null = null;
-
     const patterns = [
       /<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/,
       /<script\s+id="SIGI_STATE"[^>]*>([\s\S]*?)<\/script>/,

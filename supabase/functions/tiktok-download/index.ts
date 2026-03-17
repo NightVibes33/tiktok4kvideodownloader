@@ -9,7 +9,19 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { videoUrl, filename } = await req.json();
+    let videoUrl: string | null = null;
+    let filename: string | null = null;
+
+    // Support both GET (query params) and POST (JSON body)
+    if (req.method === 'GET') {
+      const url = new URL(req.url);
+      videoUrl = url.searchParams.get('videoUrl');
+      filename = url.searchParams.get('filename');
+    } else {
+      const body = await req.json();
+      videoUrl = body.videoUrl;
+      filename = body.filename;
+    }
 
     if (!videoUrl) {
       return new Response(

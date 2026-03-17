@@ -99,7 +99,7 @@ export default function TikTokDownloader() {
     }
   };
 
-  const qualities = videoData?.qualities || [];
+  const qualities = (videoData?.qualities || []).filter(q => !q.watermark);
 
   return (
     <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-6 flex flex-col items-center justify-center">

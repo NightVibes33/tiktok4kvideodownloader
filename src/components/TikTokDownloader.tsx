@@ -1,6 +1,15 @@
 import { useState } from "react";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2 } from "lucide-react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+interface QualityOption {
+  label: string;
+  url: string;
+  width: number;
+  height: number;
+  bitrate: number;
+  watermark: boolean;
+}
 
 interface VideoData {
   id: string;
@@ -19,6 +28,7 @@ interface VideoData {
     width: number;
     height: number;
   };
+  qualities: QualityOption[];
   stats: {
     diggCount?: number;
     commentCount?: number;
@@ -39,22 +49,25 @@ export default function TikTokDownloader() {
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
+  const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const handleDownload = async () => {
     if (!videoData) return;
+    const quality = videoData.qualities[selectedQuality] || { url: videoData.video.url };
+    if (!quality.url) return;
+
     setDownloading(true);
     try {
       const { data, error: fnError } = await supabase.functions.invoke("tiktok-download", {
         body: {
-          videoUrl: videoData.video.url,
+          videoUrl: quality.url,
           filename: `tiktok-${videoData.id}.mp4`,
         },
       });
 
       if (fnError) throw new Error(fnError.message);
 
-      // data is already a Blob from the function response
       const blob = data instanceof Blob ? data : new Blob([data], { type: "video/mp4" });
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -78,6 +91,7 @@ export default function TikTokDownloader() {
     setLoading(true);
     setError(null);
     setVideoData(null);
+    setSelectedQuality(0);
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke("tiktok-scraper", {
@@ -94,6 +108,8 @@ export default function TikTokDownloader() {
       setLoading(false);
     }
   };
+
+  const qualities = videoData?.qualities || [];
 
   return (
     <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-6 flex flex-col items-center justify-center">
@@ -193,16 +209,39 @@ export default function TikTokDownloader() {
                     </div>
                   </div>
 
-                  <div className="mt-8 space-y-3">
-                    <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary text-xs tabular">
-                      <span className="text-dim uppercase tracking-wider">Quality</span>
-                      <span className="text-heading font-medium">
-                        {videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
-                        {videoData.video.width > 0 && videoData.video.height > 0 && videoData.video.ratio && (
-                          <span className="text-dim ml-2">({videoData.video.width}×{videoData.video.height})</span>
-                        )}
-                      </span>
-                    </div>
+                  <div className="mt-6 space-y-3">
+                    {/* Quality Selector */}
+                    {qualities.length > 1 ? (
+                      <div className="relative">
+                        <label className="text-[10px] text-dim uppercase tracking-widest mb-1 block">
+                          Quality
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={selectedQuality}
+                            onChange={(e) => setSelectedQuality(Number(e.target.value))}
+                            className="w-full appearance-none bg-secondary ring-1 ring-border rounded-lg px-3 py-2.5 pr-8 text-sm text-heading tabular outline-none focus:ring-2 focus:ring-accent/50 transition-all ease-expo duration-200 cursor-pointer"
+                          >
+                            {qualities.map((q, i) => (
+                              <option key={i} value={i}>
+                                {q.label}
+                                {q.width > 0 && q.height > 0 ? ` — ${q.width}×${q.height}` : ""}
+                                {q.bitrate > 0 ? ` · ${Math.round(q.bitrate / 1000)}kbps` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary text-xs tabular">
+                        <span className="text-dim uppercase tracking-wider">Quality</span>
+                        <span className="text-heading font-medium">
+                          {qualities[0]?.label || videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
+                        </span>
+                      </div>
+                    )}
+
                     <button
                       onClick={handleDownload}
                       disabled={downloading}
@@ -216,7 +255,7 @@ export default function TikTokDownloader() {
                       {downloading ? "Downloading…" : "Save to Device"}
                     </button>
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
-                      Proxied download · works on iOS Safari
+                      {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} available
                     </p>
                   </div>
                 </div>

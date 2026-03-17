@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check } from "lucide-react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
 import { supabase } from "@/integrations/supabase/client";
+import tiktokLogo from "@/assets/tiktok-logo.jpeg";
 
 /* ── Types ── */
 
@@ -59,12 +60,8 @@ function buildVideoProxyUrl(videoData: VideoData, quality: QualityOption, downlo
     filename: `tiktok-${videoData.id}.mp4`,
     apikey: anonKey,
   });
-  if (download) {
-    params.set("download", "1");
-  }
-  if (videoData.cookies) {
-    params.set("cookies", videoData.cookies);
-  }
+  if (download) params.set("download", "1");
+  if (videoData.cookies) params.set("cookies", videoData.cookies);
   return `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
 }
 
@@ -82,38 +79,35 @@ function VideoPreview({ cover, streamUrl }: { cover: string; streamUrl?: string 
 
   if (playing && streamUrl && !videoError) {
     return (
-      <div className="relative w-full md:w-48 aspect-[9/16] bg-secondary shrink-0">
+      <div className="relative w-full md:w-52 aspect-[9/16] bg-secondary shrink-0 rounded-xl overflow-hidden">
         <video
           src={streamUrl}
           controls
           autoPlay
           playsInline
-          className="w-full h-full object-contain bg-black"
+          className="w-full h-full object-contain bg-background"
           onError={() => setVideoError(true)}
         />
-        {videoError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-destructive/10 text-destructive text-xs p-2 text-center">
-            Video unplayable — source may be expired or blocked.
-          </div>
-        )}
       </div>
     );
   }
 
   return (
-    <div className="relative w-full md:w-48 aspect-[9/16] bg-secondary shrink-0">
+    <div className="relative w-full md:w-52 aspect-[9/16] bg-secondary shrink-0 rounded-xl overflow-hidden group/preview">
       {cover && (
         <img src={cover} alt="Video cover" className="w-full h-full object-cover" />
       )}
       <button
         onClick={() => streamUrl && setPlaying(true)}
-        className="absolute inset-0 flex items-center justify-center bg-background/20 hover:bg-background/40 transition-colors cursor-pointer"
+        className="absolute inset-0 flex items-center justify-center bg-background/30 group-hover/preview:bg-background/50 transition-all duration-300 cursor-pointer"
         disabled={!streamUrl}
       >
-        <Play className="w-10 h-10 text-accent-foreground fill-accent-foreground/30" />
+        <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center glow-primary transition-transform duration-300 group-hover/preview:scale-110">
+          <Play className="w-6 h-6 text-primary-foreground fill-primary-foreground/50 ml-0.5" />
+        </div>
       </button>
       {videoError && (
-        <div className="absolute bottom-0 inset-x-0 bg-destructive/90 text-destructive-foreground text-[10px] text-center py-1 font-medium">
+        <div className="absolute bottom-0 inset-x-0 bg-destructive/90 text-destructive-foreground text-[10px] text-center py-1.5 font-medium">
           Unplayable — try another quality
         </div>
       )}
@@ -127,12 +121,12 @@ function AuthorInfo({ author }: { author: VideoData["author"] }) {
       {author.avatar && (
         <img
           src={author.avatar}
-          className="w-8 h-8 rounded-full ring-1 ring-border"
+          className="w-9 h-9 rounded-full ring-2 ring-primary/30"
           alt={`@${author.username}`}
         />
       )}
       <div>
-        <p className="text-sm font-medium text-heading">@{author.username}</p>
+        <p className="text-sm font-semibold text-heading">@{author.username}</p>
         <p className="text-xs text-dim">{author.nickname}</p>
       </div>
     </div>
@@ -142,14 +136,14 @@ function AuthorInfo({ author }: { author: VideoData["author"] }) {
 function StatsRow({ stats }: { stats: VideoData["stats"] }) {
   return (
     <div className="flex gap-4 text-[11px] font-mono uppercase tracking-wider text-dim tabular">
-      <div className="flex items-center gap-1">
-        <Heart className="w-3 h-3" /> {formatCount(stats.diggCount)}
+      <div className="flex items-center gap-1.5">
+        <Heart className="w-3 h-3 text-primary" /> {formatCount(stats.diggCount)}
       </div>
-      <div className="flex items-center gap-1">
-        <MessageCircle className="w-3 h-3" /> {formatCount(stats.commentCount)}
+      <div className="flex items-center gap-1.5">
+        <MessageCircle className="w-3 h-3 text-accent" /> {formatCount(stats.commentCount)}
       </div>
-      <div className="flex items-center gap-1">
-        <Share2 className="w-3 h-3" /> {formatCount(stats.shareCount)}
+      <div className="flex items-center gap-1.5">
+        <Share2 className="w-3 h-3 text-primary" /> {formatCount(stats.shareCount)}
       </div>
     </div>
   );
@@ -169,14 +163,14 @@ function QualitySelector({
   if (qualities.length > 1) {
     return (
       <div className="relative">
-        <label className="text-[10px] text-dim uppercase tracking-widest mb-1 block">
+        <label className="text-[10px] text-dim uppercase tracking-widest mb-1.5 block font-mono">
           Quality
         </label>
         <div className="relative">
           <select
             value={selectedQuality}
             onChange={(e) => onSelect(Number(e.target.value))}
-            className="w-full appearance-none bg-secondary ring-1 ring-border rounded-lg px-3 py-2.5 pr-8 text-sm text-heading tabular outline-none focus:ring-2 focus:ring-accent/50 transition-all ease-expo duration-200 cursor-pointer"
+            className="w-full appearance-none bg-secondary ring-1 ring-border rounded-xl px-3 py-3 pr-8 text-sm text-heading tabular outline-none focus:ring-2 focus:ring-primary/50 transition-all ease-expo duration-200 cursor-pointer font-mono"
           >
             {qualities.map((q, i) => (
               <option key={i} value={i}>
@@ -186,14 +180,14 @@ function QualitySelector({
               </option>
             ))}
           </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-secondary text-xs tabular">
+    <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-secondary text-xs tabular font-mono">
       <span className="text-dim uppercase tracking-wider">Quality</span>
       <span className="text-heading font-medium">
         {qualities[0]?.label || fallbackLabel}
@@ -240,9 +234,7 @@ function DownloadActions({
     setDownloading(true);
     try {
       const response = await fetch(downloadUrl);
-      if (!response.ok) {
-        throw new Error("Failed to download video");
-      }
+      if (!response.ok) throw new Error("Failed to download video");
 
       const blob = await response.blob();
       const file = new File([blob], "tiktok-video.mp4", { type: blob.type || "video/mp4" });
@@ -266,7 +258,7 @@ function DownloadActions({
       <button
         onClick={handleDownload}
         disabled={!downloadUrl || downloading}
-        className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 disabled:bg-secondary text-accent-foreground disabled:text-muted-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
+        className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground rounded-xl font-semibold transition-all ease-expo duration-200 glow-primary hover:shadow-[0_0_30px_hsl(var(--glow-primary)/0.4)]"
       >
         {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         {downloading ? "Preparing Download" : "Download Video"}
@@ -274,17 +266,17 @@ function DownloadActions({
 
       <button
         onClick={handleCopy}
-        className="w-full flex items-center justify-center gap-2 py-2.5 bg-secondary hover:bg-secondary/80 text-heading rounded-xl text-sm font-medium transition-colors ease-expo duration-200 ring-1 ring-border"
+        className="w-full flex items-center justify-center gap-2 py-2.5 bg-secondary hover:bg-secondary/80 text-heading rounded-xl text-sm font-medium transition-all ease-expo duration-200 ring-1 ring-border hover:ring-primary/30"
       >
-        {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        {copied ? <Check className="w-3.5 h-3.5 text-accent" /> : <Copy className="w-3.5 h-3.5" />}
         {copied ? "Copied!" : "Copy Download Link"}
       </button>
 
-      <p className="text-[10px] text-center text-dim uppercase tracking-widest">
+      <p className="text-[10px] text-center text-dim uppercase tracking-widest font-mono">
         {qualityCount} quality option{qualityCount !== 1 ? "s" : ""} · no watermark
       </p>
       <p className="text-xs text-center text-dim">
-        On iPhone, Download now prepares the file first so it can be saved or shared correctly.
+        On iPhone, download prepares the file first so it can be saved or shared.
       </p>
     </div>
   );
@@ -339,51 +331,70 @@ export default function TikTokDownloader() {
   const downloadUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, true) : "";
 
   return (
-    <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-4 sm:p-6 flex flex-col items-center justify-center">
-      <div className="w-full max-w-xl space-y-8">
+    <main className="min-h-svh bg-background text-foreground selection:bg-primary/30 selection:text-primary-foreground p-4 sm:p-6 flex flex-col items-center">
+      {/* Background effects */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-accent/5 rounded-full blur-[100px]" />
+      </div>
+
+      <div className="w-full max-w-xl space-y-8 relative z-10 pt-8 sm:pt-16">
         {/* Header */}
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-medium text-heading tracking-tight">
-            Media Extractor
-          </h1>
-          <p className="text-sm text-dim">
-            Enter a TikTok URL to fetch the direct MP4 stream.
-          </p>
+        <div className="space-y-4 text-center">
+          <div className="flex justify-center">
+            <img
+              src={tiktokLogo}
+              alt="TikTok Downloader"
+              className="w-16 h-16 rounded-2xl ring-2 ring-primary/20 shadow-lg shadow-primary/10"
+            />
+          </div>
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold text-heading tracking-tight">
+              TikTok <span className="text-gradient">Downloader</span>
+            </h1>
+            <p className="text-sm text-dim mt-2 flex items-center justify-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-accent" />
+              Paste a link · Pick quality · Save HD MP4
+            </p>
+          </div>
         </div>
 
         {/* Input */}
         <form onSubmit={handleFetch} className="relative group">
-          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <Link2 className="w-4 h-4 text-muted-foreground group-focus-within:text-accent transition-colors ease-expo duration-200" />
+          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
+          <div className="relative">
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+              <Link2 className="w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors ease-expo duration-200" />
+            </div>
+            <input
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              placeholder="https://www.tiktok.com/@user/video/..."
+              className="w-full bg-secondary/80 backdrop-blur-sm border-0 ring-1 ring-border focus:ring-2 focus:ring-primary/50 rounded-2xl py-4 pl-11 pr-28 text-heading placeholder:text-muted-foreground transition-all ease-expo duration-200 outline-none"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+            <button
+              type="submit"
+              disabled={loading || !url.trim()}
+              className="absolute right-2 top-2 bottom-2 px-5 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground font-semibold rounded-xl text-sm transition-all ease-expo duration-200 flex items-center gap-2"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Extract"}
+            </button>
           </div>
-          <input
-            type="url"
-            inputMode="url"
-            autoComplete="url"
-            placeholder="https://www.tiktok.com/@user/video/..."
-            className="w-full bg-secondary border-0 ring-1 ring-border focus:ring-2 focus:ring-accent/50 rounded-xl py-4 pl-11 pr-32 text-heading placeholder:text-muted-foreground transition-all ease-expo duration-200 outline-none"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-          <button
-            type="submit"
-            disabled={loading || !url.trim()}
-            className="absolute right-2 top-2 bottom-2 px-4 bg-primary hover:bg-primary/90 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground font-medium rounded-lg text-sm transition-all ease-expo duration-200 flex items-center gap-2"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Extract"}
-          </button>
         </form>
 
         {/* Error */}
         {error && (
-          <div className="p-4 bg-destructive/10 ring-1 ring-destructive/20 rounded-xl text-destructive text-sm">
+          <div className="p-4 bg-destructive/10 ring-1 ring-destructive/20 rounded-2xl text-destructive text-sm animate-in fade-in slide-in-from-top-2 duration-300">
             {error}
           </div>
         )}
 
         {/* Result */}
         {videoData && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
             <div className="surface-elevated rounded-2xl overflow-hidden">
               <div className="flex flex-col md:flex-row">
                 <VideoPreview cover={videoData.video.cover} streamUrl={previewUrl} />
@@ -420,8 +431,32 @@ export default function TikTokDownloader() {
           </div>
         )}
 
+        {/* Features */}
+        {!videoData && (
+          <div className="grid grid-cols-3 gap-3 animate-in fade-in duration-700 delay-200">
+            {[
+              { icon: "🎬", title: "HD Quality", desc: "Up to 4K" },
+              { icon: "💨", title: "No Watermark", desc: "Clean videos" },
+              { icon: "⚡", title: "Fast & Free", desc: "Instant save" },
+            ].map((f) => (
+              <div key={f.title} className="text-center p-4 rounded-2xl bg-secondary/50 ring-1 ring-border/50">
+                <div className="text-2xl mb-2">{f.icon}</div>
+                <p className="text-xs font-semibold text-heading">{f.title}</p>
+                <p className="text-[10px] text-dim mt-0.5">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
         <BuyMeCoffee />
         <AdBanner />
+
+        {/* Footer */}
+        <footer className="text-center pb-6">
+          <p className="text-[10px] text-dim font-mono uppercase tracking-widest">
+            Built with ♥ · Not affiliated with TikTok
+          </p>
+        </footer>
       </div>
     </main>
   );

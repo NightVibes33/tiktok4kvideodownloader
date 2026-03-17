@@ -47,7 +47,7 @@ function formatCount(num?: number): string {
 export default function TikTokDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [downloading] = useState(false);
+  
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -57,13 +57,16 @@ export default function TikTokDownloader() {
     const quality = videoData.qualities[selectedQuality] || { url: videoData.video.url };
     if (!quality.url) return;
 
-    // Build direct proxy URL — works on iOS Safari without blob workarounds
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?videoUrl=${encodeURIComponent(quality.url)}&filename=${encodeURIComponent(`tiktok-${videoData.id}.mp4`)}&apikey=${anonKey}`;
 
-    // Open in new tab — iOS Safari will show native download/play dialog
-    window.open(proxyUrl, "_blank");
+    const userAgent = navigator.userAgent || "";
+    const isIos = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isSafari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
+    const useDirectUrl = isIos && isSafari;
+
+    window.open(useDirectUrl ? quality.url : proxyUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleFetch = async (e: React.FormEvent) => {
@@ -226,15 +229,10 @@ export default function TikTokDownloader() {
 
                     <button
                       onClick={handleDownload}
-                      disabled={downloading}
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 disabled:bg-accent/50 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
                     >
-                      {downloading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Download className="w-4 h-4" />
-                      )}
-                      {downloading ? "Downloading…" : "Save to Device"}
+                      <Download className="w-4 h-4" />
+                      Save to Device
                     </button>
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
                       {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} available

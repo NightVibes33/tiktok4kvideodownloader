@@ -231,8 +231,6 @@ export default function TikTokDownloader() {
 
                     <a
                       href={downloadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
                     >
                       <Download className="w-4 h-4" />

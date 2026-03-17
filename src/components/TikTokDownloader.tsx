@@ -401,8 +401,13 @@ export default function TikTokDownloader() {
               Paste a link · Pick quality · Save HD MP4
             </p>
           </div>
-        </div>
-
+          </div>
+          {totalDownloads !== null && (
+            <div className="flex items-center justify-center gap-1.5 text-xs text-dim font-mono">
+              <TrendingUp className="w-3.5 h-3.5 text-primary" />
+              <span className="text-heading font-semibold">{formatCount(totalDownloads)}</span> videos downloaded worldwide
+            </div>
+          )}
         {/* Input */}
         <form onSubmit={handleFetch} className="relative group space-y-2">
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />

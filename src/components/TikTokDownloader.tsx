@@ -297,6 +297,7 @@ export default function TikTokDownloader() {
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
+  const { history, addToHistory, removeFromHistory, clearHistory } = useDownloadHistory();
 
   useEffect(() => {
     supabase

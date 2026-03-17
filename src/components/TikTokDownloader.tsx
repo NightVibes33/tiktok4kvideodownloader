@@ -363,6 +363,13 @@ export default function TikTokDownloader() {
 
   const isTikTokUrl = (text: string) => /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(text.trim());
 
+  const handleReuse = useCallback((reUrl: string) => {
+    setUrl(reUrl);
+    setError(null);
+    setVideoData(null);
+    inputRef.current?.focus();
+  }, []);
+
   const handlePasteFromClipboard = useCallback(async () => {
     if (url) return;
     try {

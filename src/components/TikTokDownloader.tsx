@@ -219,7 +219,6 @@ export default function TikTokDownloader() {
                       Proxied download · works on iOS Safari
                     </p>
                   </div>
-                  </div>
                 </div>
               </div>
             </div>

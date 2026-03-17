@@ -37,8 +37,39 @@ function formatCount(num?: number): string {
 export default function TikTokDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const handleDownload = async () => {
+    if (!videoData) return;
+    setDownloading(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("tiktok-download", {
+        body: {
+          videoUrl: videoData.video.url,
+          filename: `tiktok-${videoData.id}.mp4`,
+        },
+      });
+
+      if (fnError) throw new Error(fnError.message);
+
+      // data is already a Blob from the function response
+      const blob = data instanceof Blob ? data : new Blob([data], { type: "video/mp4" });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `tiktok-${videoData.id}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err: any) {
+      setError("Download failed: " + (err.message || "Unknown error"));
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();

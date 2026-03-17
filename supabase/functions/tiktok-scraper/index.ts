@@ -176,6 +176,13 @@ Deno.serve(async (req) => {
     };
 
     const response = await fetch(url, { headers, redirect: 'follow' });
+    
+    // Capture cookies from TikTok response for use in download proxy
+    const setCookieHeaders = response.headers.getSetCookie?.() || [];
+    const cookies = setCookieHeaders
+      .map((c: string) => c.split(';')[0])
+      .join('; ');
+    
     const html = await response.text();
 
     // Try multiple hydration patterns

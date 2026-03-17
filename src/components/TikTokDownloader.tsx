@@ -420,6 +420,7 @@ export default function TikTokDownloader() {
           </div>
         )}
 
+        <BuyMeCoffee />
         <AdBanner />
       </div>
     </main>

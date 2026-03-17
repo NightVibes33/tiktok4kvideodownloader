@@ -112,7 +112,7 @@ function extractQualities(video: any): QualityOption[] {
   return qualities;
 }
 
-function buildResult(itemInfo: any, parsedVideo: any) {
+function buildResult(itemInfo: any, parsedVideo: any, cookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
 
@@ -141,6 +141,7 @@ function buildResult(itemInfo: any, parsedVideo: any) {
     },
     qualities,
     stats: itemInfo?.stats || {},
+    cookies,
   };
 }
 

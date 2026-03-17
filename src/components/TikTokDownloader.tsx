@@ -52,34 +52,6 @@ export default function TikTokDownloader() {
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const handleDownload = () => {
-    if (!videoData) return;
-    const quality = videoData.qualities[selectedQuality] || { url: videoData.video.url };
-    if (!quality.url) return;
-
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const params = new URLSearchParams({
-      videoUrl: quality.url,
-      filename: `tiktok-${videoData.id}.mp4`,
-      apikey: anonKey,
-    });
-    if (videoData.cookies) {
-      params.set('cookies', videoData.cookies);
-    }
-    const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
-
-    const userAgent = navigator.userAgent || "";
-    const isIos = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    const isSafari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
-
-    if (isIos && isSafari) {
-      window.location.assign(proxyUrl);
-      return;
-    }
-
-    window.open(proxyUrl, "_blank", "noopener,noreferrer");
-  };
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +78,25 @@ export default function TikTokDownloader() {
     }
   };
 
-  const qualities = (videoData?.qualities || []).filter(q => !q.watermark);
+  const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
+  const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities[0] || null;
+  const downloadUrl = (() => {
+    if (!videoData || !activeQuality?.url) return "";
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const params = new URLSearchParams({
+      videoUrl: activeQuality.url,
+      filename: `tiktok-${videoData.id}.mp4`,
+      apikey: anonKey,
+    });
+
+    if (videoData.cookies) {
+      params.set("cookies", videoData.cookies);
+    }
+
+    return `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
+  })();
 
   return (
     <main className="min-h-svh bg-background text-foreground selection:bg-accent/30 selection:text-accent-foreground p-6 flex flex-col items-center justify-center">
@@ -239,13 +229,15 @@ export default function TikTokDownloader() {
                       </div>
                     )}
 
-                    <button
-                      onClick={handleDownload}
+                    <a
+                      href={downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="w-full flex items-center justify-center gap-2 py-3 bg-accent hover:bg-accent/90 text-accent-foreground rounded-xl font-medium transition-colors ease-expo duration-200 shadow-lg shadow-accent/20"
                     >
                       <Download className="w-4 h-4" />
                       Download Video
-                    </button>
+                    </a>
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
                       {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} · no watermark
                     </p>

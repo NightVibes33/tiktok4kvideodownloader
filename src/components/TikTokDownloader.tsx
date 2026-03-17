@@ -243,6 +243,9 @@ export default function TikTokDownloader() {
                     <p className="text-[10px] text-center text-dim uppercase tracking-widest">
                       {qualities.length} quality option{qualities.length !== 1 ? "s" : ""} available
                     </p>
+                    <p className="text-xs text-center text-dim">
+                      On iPhone/iPad, TikTok may open the video first — use Share → Save Video.
+                    </p>
                   </div>
                 </div>
               </div>

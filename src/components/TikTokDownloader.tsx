@@ -64,6 +64,9 @@ export default function TikTokDownloader() {
       filename: `tiktok-${videoData.id}.mp4`,
       apikey: anonKey,
     });
+    if (videoData.cookies) {
+      params.set('cookies', videoData.cookies);
+    }
     const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
 
     window.open(proxyUrl, "_blank", "noopener,noreferrer");

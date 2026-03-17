@@ -2,7 +2,9 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
+import DownloadHistory from "./DownloadHistory";
 import { supabase } from "@/integrations/supabase/client";
+import { useDownloadHistory } from "@/hooks/use-download-history";
 import tiktokLogo from "@/assets/tiktok-logo.jpeg";
 
 /* ── Types ── */
@@ -295,6 +297,7 @@ export default function TikTokDownloader() {
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
+  const { history, addToHistory, removeFromHistory, clearHistory } = useDownloadHistory();
 
   useEffect(() => {
     supabase
@@ -310,7 +313,17 @@ export default function TikTokDownloader() {
   const incrementDownloads = useCallback(async () => {
     const { data } = await supabase.rpc("increment_downloads");
     if (typeof data === "number") setTotalDownloads(data);
-  }, []);
+    if (videoData) {
+      addToHistory({
+        id: videoData.id,
+        url: url.trim(),
+        description: videoData.description,
+        author: videoData.author.username,
+        avatar: videoData.author.avatar,
+        cover: videoData.video.cover,
+      });
+    }
+  }, [videoData, url, addToHistory]);
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -349,6 +362,13 @@ export default function TikTokDownloader() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isTikTokUrl = (text: string) => /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(text.trim());
+
+  const handleReuse = useCallback((reUrl: string) => {
+    setUrl(reUrl);
+    setError(null);
+    setVideoData(null);
+    inputRef.current?.focus();
+  }, []);
 
   const handlePasteFromClipboard = useCallback(async () => {
     if (url) return;
@@ -530,6 +550,13 @@ export default function TikTokDownloader() {
             ))}
           </div>
         )}
+
+        <DownloadHistory
+          history={history}
+          onReuse={handleReuse}
+          onRemove={removeFromHistory}
+          onClear={clearHistory}
+        />
 
         <BuyMeCoffee />
         <AdBanner />

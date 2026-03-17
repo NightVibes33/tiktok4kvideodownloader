@@ -343,7 +343,7 @@ export default function TikTokDownloader() {
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="surface-elevated rounded-2xl overflow-hidden">
               <div className="flex flex-col md:flex-row">
-                <VideoPreview cover={videoData.video.cover} />
+                <VideoPreview cover={videoData.video.cover} streamUrl={downloadUrl} />
 
                 <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between gap-4">
                   <div className="space-y-4">

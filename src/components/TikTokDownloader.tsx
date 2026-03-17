@@ -57,13 +57,16 @@ export default function TikTokDownloader() {
     const quality = videoData.qualities[selectedQuality] || { url: videoData.video.url };
     if (!quality.url) return;
 
-    // Build direct proxy URL — works on iOS Safari without blob workarounds
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const proxyUrl = `${supabaseUrl}/functions/v1/tiktok-download?videoUrl=${encodeURIComponent(quality.url)}&filename=${encodeURIComponent(`tiktok-${videoData.id}.mp4`)}&apikey=${anonKey}`;
 
-    // Open in new tab — iOS Safari will show native download/play dialog
-    window.open(proxyUrl, "_blank");
+    const userAgent = navigator.userAgent || "";
+    const isIos = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isSafari = /Safari/.test(userAgent) && !/CriOS|FxiOS|EdgiOS/.test(userAgent);
+    const useDirectUrl = isIos && isSafari;
+
+    window.open(useDirectUrl ? quality.url : proxyUrl, "_blank", "noopener,noreferrer");
   };
 
   const handleFetch = async (e: React.FormEvent) => {

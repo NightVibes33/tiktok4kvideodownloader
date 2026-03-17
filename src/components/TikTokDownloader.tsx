@@ -290,6 +290,23 @@ export default function TikTokDownloader() {
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
+
+  useEffect(() => {
+    supabase
+      .from("download_counter")
+      .select("total_downloads")
+      .eq("id", 1)
+      .single()
+      .then(({ data }) => {
+        if (data) setTotalDownloads(data.total_downloads);
+      });
+  }, []);
+
+  const incrementDownloads = useCallback(async () => {
+    const { data } = await supabase.rpc("increment_downloads");
+    if (typeof data === "number") setTotalDownloads(data);
+  }, []);
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();

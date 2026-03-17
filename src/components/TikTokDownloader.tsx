@@ -313,7 +313,17 @@ export default function TikTokDownloader() {
   const incrementDownloads = useCallback(async () => {
     const { data } = await supabase.rpc("increment_downloads");
     if (typeof data === "number") setTotalDownloads(data);
-  }, []);
+    if (videoData) {
+      addToHistory({
+        id: videoData.id,
+        url: url.trim(),
+        description: videoData.description,
+        author: videoData.author.username,
+        avatar: videoData.author.avatar,
+        cover: videoData.video.cover,
+      });
+    }
+  }, [videoData, url, addToHistory]);
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();

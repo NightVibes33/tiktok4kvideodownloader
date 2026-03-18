@@ -243,61 +243,75 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch videos via TikTok's internal item_list API using secUid + cookies from profile page
-    if (videoItems.length === 0 && user.secUid) {
+    // Strategy: Extract video IDs from profile HTML, then use oembed API for each
+    if (videoItems.length === 0) {
       try {
-        const secUid = user.secUid;
-        const apiBase = 'https://www.tiktok.com/api/post/item_list/';
-        const params = new URLSearchParams({
-          aid: '1988',
-          count: '30',
-          cursor: '0',
-          device_platform: 'web_pc',
-          secUid: secUid,
-        });
-
-        const apiHeaders: Record<string, string> = {
-          'User-Agent': headers['User-Agent'],
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Referer': profileUrl,
-        };
-        if (cookies) apiHeaders['Cookie'] = cookies;
-
-        // Also extract msToken from cookies if available
-        const msTokenMatch = cookies.match(/msToken=([^;]+)/);
-        if (msTokenMatch) {
-          params.set('msToken', msTokenMatch[1]);
+        // Look for video IDs in the profile HTML (href="/video/..." or data attributes)
+        const videoIdPattern = /["'\/]video[\/](\d{15,25})/g;
+        const ids = new Set<string>();
+        let m;
+        while ((m = videoIdPattern.exec(html)) !== null) {
+          ids.add(m[1]);
         }
 
-        console.log('Fetching videos via item_list API, secUid:', secUid.substring(0, 25) + '...');
-        const apiResponse = await fetch(`${apiBase}?${params.toString()}`, { headers: apiHeaders });
-        
-        const contentType = apiResponse.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const apiData = await apiResponse.json();
-          console.log('item_list response: status=' + apiData.statusCode + ', items=' + (apiData.itemList?.length || 0) + ', hasMore=' + apiData.hasMore);
-
-          if (apiData.itemList && Array.isArray(apiData.itemList)) {
-            videoItems = apiData.itemList.map((item: any) => ({
-              id: item.id || '',
-              description: item.desc || '',
-              createTime: item.createTime || 0,
-              cover: item.video?.cover || item.video?.originCover || '',
-              likes: item.stats?.diggCount || 0,
-              comments: item.stats?.commentCount || 0,
-              shares: item.stats?.shareCount || 0,
-              plays: item.stats?.playCount || 0,
-              duration: item.video?.duration || 0,
-            }));
-            console.log(`Got ${videoItems.length} videos with per-video stats`);
+        // Also look for video IDs in the rehydration data (sometimes nested in SEO/meta)
+        if (ids.size === 0) {
+          const allIdPattern = /(\d{19,20})/g;
+          const potentialIds: string[] = [];
+          // Look in meta tags for video references  
+          const ogUrlMatch = html.match(/property="og:url"[^>]*content="([^"]+)"/g);
+          if (ogUrlMatch) {
+            for (const tag of ogUrlMatch) {
+              const vidMatch = tag.match(/video\/(\d{15,25})/);
+              if (vidMatch) ids.add(vidMatch[1]);
+            }
           }
-        } else {
-          const text = await apiResponse.text();
-          console.log('item_list returned non-JSON:', apiResponse.status, text.substring(0, 200));
         }
-      } catch (apiError) {
-        console.error('item_list API failed:', apiError);
+
+        console.log(`Found ${ids.size} video IDs in profile HTML`);
+
+        // If we found IDs, get details via oembed (public API, no auth needed)
+        if (ids.size > 0) {
+          const username = user.uniqueId || user.unique_id || '';
+          const idsArr = Array.from(ids).slice(0, 15);
+
+          const oembedResults = await Promise.allSettled(
+            idsArr.map(async (vid) => {
+              const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(`https://www.tiktok.com/@${username}/video/${vid}`)}`;
+              const r = await fetch(oembedUrl, { headers: { 'User-Agent': headers['User-Agent'] } });
+              if (!r.ok) return null;
+              const d = await r.json();
+              return { id: vid, title: d.title || '', thumbnail: d.thumbnail_url || '', author: d.author_name || '' };
+            })
+          );
+
+          for (const result of oembedResults) {
+            if (result.status === 'fulfilled' && result.value) {
+              const d = result.value;
+              videoItems.push({
+                id: d.id,
+                description: d.title,
+                createTime: 0,
+                cover: d.thumbnail,
+                likes: 0, comments: 0, shares: 0, plays: 0, duration: 0,
+              });
+            }
+          }
+          console.log(`Got ${videoItems.length} videos from oembed`);
+        }
+
+        // If still no videos, try scraping the first few video pages for real stats
+        if (videoItems.length === 0 && ids.size === 0) {
+          // Try fetching the profile page and extracting video links from rendered link tags
+          const linkPattern = /href="(https:\/\/www\.tiktok\.com\/@[^"]*\/video\/\d+)"/g;
+          while ((m = linkPattern.exec(html)) !== null) {
+            const vidMatch = m[1].match(/video\/(\d{15,25})/);
+            if (vidMatch) ids.add(vidMatch[1]);
+          }
+          console.log(`Found ${ids.size} video IDs from href tags`);
+        }
+      } catch (e) {
+        console.error('Video extraction failed:', e);
       }
     }
 

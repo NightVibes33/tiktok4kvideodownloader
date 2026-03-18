@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.tiktok-download]
 verify_jwt = false
+
+[functions.tiktok-profile]
+verify_jwt = false

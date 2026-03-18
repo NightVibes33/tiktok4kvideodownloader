@@ -243,8 +243,63 @@ Deno.serve(async (req) => {
       );
     }
 
-    // TikTok doesn't include video list data in profile page HTML.
-    // Engagement is estimated from profile-level stats (total likes / video count).
+    // Fetch videos via TikTok's internal item_list API using secUid + cookies from profile page
+    if (videoItems.length === 0 && user.secUid) {
+      try {
+        const secUid = user.secUid;
+        const apiBase = 'https://www.tiktok.com/api/post/item_list/';
+        const params = new URLSearchParams({
+          aid: '1988',
+          count: '30',
+          cursor: '0',
+          device_platform: 'web_pc',
+          secUid: secUid,
+        });
+
+        const apiHeaders: Record<string, string> = {
+          'User-Agent': headers['User-Agent'],
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': profileUrl,
+        };
+        if (cookies) apiHeaders['Cookie'] = cookies;
+
+        // Also extract msToken from cookies if available
+        const msTokenMatch = cookies.match(/msToken=([^;]+)/);
+        if (msTokenMatch) {
+          params.set('msToken', msTokenMatch[1]);
+        }
+
+        console.log('Fetching videos via item_list API, secUid:', secUid.substring(0, 25) + '...');
+        const apiResponse = await fetch(`${apiBase}?${params.toString()}`, { headers: apiHeaders });
+        
+        const contentType = apiResponse.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const apiData = await apiResponse.json();
+          console.log('item_list response: status=' + apiData.statusCode + ', items=' + (apiData.itemList?.length || 0) + ', hasMore=' + apiData.hasMore);
+
+          if (apiData.itemList && Array.isArray(apiData.itemList)) {
+            videoItems = apiData.itemList.map((item: any) => ({
+              id: item.id || '',
+              description: item.desc || '',
+              createTime: item.createTime || 0,
+              cover: item.video?.cover || item.video?.originCover || '',
+              likes: item.stats?.diggCount || 0,
+              comments: item.stats?.commentCount || 0,
+              shares: item.stats?.shareCount || 0,
+              plays: item.stats?.playCount || 0,
+              duration: item.video?.duration || 0,
+            }));
+            console.log(`Got ${videoItems.length} videos with per-video stats`);
+          }
+        } else {
+          const text = await apiResponse.text();
+          console.log('item_list returned non-JSON:', apiResponse.status, text.substring(0, 200));
+        }
+      } catch (apiError) {
+        console.error('item_list API failed:', apiError);
+      }
+    }
 
     // If we still have no per-video stats, estimate from profile-level data
     const videoCount = stats?.videoCount || user?.videoCount || 0;

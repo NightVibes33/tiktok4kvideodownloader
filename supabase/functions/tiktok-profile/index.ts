@@ -174,6 +174,8 @@ Deno.serve(async (req) => {
     };
 
     const response = await fetch(profileUrl, { headers, redirect: 'follow' });
+    const setCookieHeaders = response.headers.getSetCookie?.() || [];
+    const cookies = setCookieHeaders.map((c: string) => c.split(';')[0]).join('; ');
     const html = await response.text();
 
     let scriptData: string | null = null;
@@ -200,19 +202,9 @@ Deno.serve(async (req) => {
 
     const parsed = JSON.parse(scriptData);
 
-    // Debug: log top-level keys to understand data structure
     const defaultScope = parsed?.__DEFAULT_SCOPE__;
-    if (defaultScope) {
-      console.log('DEFAULT_SCOPE keys:', Object.keys(defaultScope));
-    } else {
-      console.log('Top-level keys:', Object.keys(parsed));
-    }
-
-    // Try to extract user info from various data structures
     const userDetail = defaultScope?.['webapp.user-detail'];
     const userInfo = userDetail?.userInfo;
-
-    // Alternative: SIGI_STATE format
     const userModule = parsed?.UserModule;
     const itemModule = parsed?.ItemModule;
 
@@ -223,44 +215,12 @@ Deno.serve(async (req) => {
     if (userInfo) {
       user = userInfo.user;
       stats = userInfo.stats;
-
-      // Try multiple paths for video items
-      const itemList = userDetail?.itemList ||
-                       defaultScope?.['webapp.video-list']?.itemList ||
-                       defaultScope?.['webapp.user-detail']?.itemList || [];
-
-      // Also check if videos are nested under user-post
-      const userPost = defaultScope?.['webapp.user-post'];
-      const postList = userPost?.itemList || userPost?.list || [];
-
-      // Merge both sources
-      const allItems = [...itemList, ...postList];
-
-      // Log what we found
-      console.log('userDetail keys:', Object.keys(userDetail || {}));
-      if (userPost) console.log('user-post keys:', Object.keys(userPost));
-      console.log('Items found: itemList=' + itemList.length + ', postList=' + postList.length);
-
-      videoItems = allItems.map((item: any) => ({
-        id: item.id || '',
-        description: item.desc || '',
-        createTime: item.createTime || 0,
-        cover: item.video?.cover || item.video?.originCover || '',
-        likes: item.stats?.diggCount || 0,
-        comments: item.stats?.commentCount || 0,
-        shares: item.stats?.shareCount || 0,
-        plays: item.stats?.playCount || 0,
-        duration: item.video?.duration || 0,
-      }));
     } else if (userModule) {
       const userKeys = Object.keys(userModule.users || {});
       if (userKeys.length > 0) {
-        const firstUser = userModule.users[userKeys[0]];
-        const firstStats = userModule.stats?.[userKeys[0]];
-        user = firstUser;
-        stats = firstStats;
+        user = userModule.users[userKeys[0]];
+        stats = userModule.stats?.[userKeys[0]];
       }
-
       if (itemModule) {
         videoItems = Object.values(itemModule).map((item: any) => ({
           id: item.id || '',
@@ -281,6 +241,46 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Profile not found or is private.' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // If we don't have videos yet, fetch them via TikTok's internal API
+    if (videoItems.length === 0 && user.secUid) {
+      try {
+        const secUid = user.secUid;
+        const apiUrl = `https://www.tiktok.com/api/post/item_list/?WebIdLastTime=${Math.floor(Date.now() / 1000)}&aid=1988&count=30&secUid=${encodeURIComponent(secUid)}&cursor=0&cookie_enabled=true&screen_width=1920&screen_height=1080&browser_language=en-US&browser_platform=MacIntel&browser_name=Mozilla&browser_version=5.0&browser_online=true&region=US&language=en`;
+
+        const apiHeaders: Record<string, string> = {
+          'User-Agent': headers['User-Agent'],
+          'Accept': 'application/json, text/plain, */*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Referer': profileUrl,
+          'Origin': 'https://www.tiktok.com',
+        };
+        if (cookies) apiHeaders['Cookie'] = cookies;
+
+        console.log('Fetching videos via API for secUid:', secUid.substring(0, 20) + '...');
+        const apiResponse = await fetch(apiUrl, { headers: apiHeaders });
+        const apiData = await apiResponse.json();
+
+        console.log('API response status:', apiData.statusCode, 'hasMore:', apiData.hasMore, 'items:', apiData.itemList?.length || 0);
+
+        if (apiData.itemList && Array.isArray(apiData.itemList)) {
+          videoItems = apiData.itemList.map((item: any) => ({
+            id: item.id || '',
+            description: item.desc || '',
+            createTime: item.createTime || 0,
+            cover: item.video?.cover || item.video?.originCover || '',
+            likes: item.stats?.diggCount || 0,
+            comments: item.stats?.commentCount || 0,
+            shares: item.stats?.shareCount || 0,
+            plays: item.stats?.playCount || 0,
+            duration: item.video?.duration || 0,
+          }));
+        }
+      } catch (apiError) {
+        console.error('Failed to fetch videos via API:', apiError);
+        // Continue without videos — profile stats are still useful
+      }
     }
 
     const followers = stats?.followerCount || user?.followerCount || 0;

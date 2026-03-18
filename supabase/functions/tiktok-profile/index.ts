@@ -200,8 +200,15 @@ Deno.serve(async (req) => {
 
     const parsed = JSON.parse(scriptData);
 
-    // Try to extract user info from various data structures
+    // Debug: log top-level keys to understand data structure
     const defaultScope = parsed?.__DEFAULT_SCOPE__;
+    if (defaultScope) {
+      console.log('DEFAULT_SCOPE keys:', Object.keys(defaultScope));
+    } else {
+      console.log('Top-level keys:', Object.keys(parsed));
+    }
+
+    // Try to extract user info from various data structures
     const userDetail = defaultScope?.['webapp.user-detail'];
     const userInfo = userDetail?.userInfo;
 
@@ -217,11 +224,24 @@ Deno.serve(async (req) => {
       user = userInfo.user;
       stats = userInfo.stats;
 
-      // Extract videos from the user page
-      const itemList = defaultScope?.['webapp.user-detail']?.itemList ||
-                       defaultScope?.['webapp.video-list']?.itemList || [];
+      // Try multiple paths for video items
+      const itemList = userDetail?.itemList ||
+                       defaultScope?.['webapp.video-list']?.itemList ||
+                       defaultScope?.['webapp.user-detail']?.itemList || [];
 
-      videoItems = itemList.map((item: any) => ({
+      // Also check if videos are nested under user-post
+      const userPost = defaultScope?.['webapp.user-post'];
+      const postList = userPost?.itemList || userPost?.list || [];
+
+      // Merge both sources
+      const allItems = [...itemList, ...postList];
+
+      // Log what we found
+      console.log('userDetail keys:', Object.keys(userDetail || {}));
+      if (userPost) console.log('user-post keys:', Object.keys(userPost));
+      console.log('Items found: itemList=' + itemList.length + ', postList=' + postList.length);
+
+      videoItems = allItems.map((item: any) => ({
         id: item.id || '',
         description: item.desc || '',
         createTime: item.createTime || 0,

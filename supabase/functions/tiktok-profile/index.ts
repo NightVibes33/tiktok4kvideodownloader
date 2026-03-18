@@ -243,93 +243,89 @@ Deno.serve(async (req) => {
       );
     }
 
-    // If we don't have videos yet, try scraping with mobile UA (returns inline video data)
+    // TikTok doesn't include videos in rehydration data for profiles.
+    // Try fetching with a bot-like UA that triggers SSR with video data.
     if (videoItems.length === 0) {
       try {
-        const mobileHeaders = {
-          ...headers,
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        const botHeaders = {
+          'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+          'Accept': 'text/html,application/xhtml+xml',
+          'Accept-Language': 'en-US,en;q=0.9',
         };
 
-        const mobileResponse = await fetch(profileUrl, { headers: mobileHeaders, redirect: 'follow' });
-        const mobileHtml = await mobileResponse.text();
+        const botResponse = await fetch(profileUrl, { headers: botHeaders, redirect: 'follow' });
+        const botHtml = await botResponse.text();
 
-        // Extract video data from mobile page
-        for (const pattern of patterns) {
-          const match = mobileHtml.match(pattern);
-          if (match) {
+        // Extract video IDs from og:video or structured data in bot response
+        const videoIdPattern = /video\/(\d{15,25})/g;
+        const ids = new Set<string>();
+        let m;
+        while ((m = videoIdPattern.exec(botHtml)) !== null) {
+          ids.add(m[1]);
+        }
+
+        // Also look for JSON-LD with video data
+        const jsonLdMatch = botHtml.match(/<script\s+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g);
+        if (jsonLdMatch) {
+          for (const block of jsonLdMatch) {
             try {
-              const mobileData = JSON.parse(match[1]);
-              const mobileScope = mobileData?.__DEFAULT_SCOPE__;
-              const mobileDetail = mobileScope?.['webapp.user-detail'];
-
-              // Check all possible item locations in the mobile response
-              const candidates = [
-                mobileDetail?.itemList,
-                mobileScope?.['webapp.user-post']?.itemList,
-                mobileScope?.['webapp.video-list']?.itemList,
-              ];
-
-              // Also try SIGI format
-              if (mobileData?.ItemModule) {
-                candidates.push(Object.values(mobileData.ItemModule));
-              }
-
-              for (const items of candidates) {
-                if (Array.isArray(items) && items.length > 0) {
-                  videoItems = items.map((item: any) => ({
-                    id: item.id || '',
-                    description: item.desc || '',
-                    createTime: item.createTime || 0,
-                    cover: item.video?.cover || item.video?.originCover || '',
-                    likes: item.stats?.diggCount || 0,
-                    comments: item.stats?.commentCount || 0,
-                    shares: item.stats?.shareCount || 0,
-                    plays: item.stats?.playCount || 0,
-                    duration: item.video?.duration || 0,
-                  }));
-                  console.log(`Found ${videoItems.length} videos via mobile scrape`);
-                  break;
+              const content = block.replace(/<script[^>]*>/, '').replace(/<\/script>/, '');
+              const ld = JSON.parse(content);
+              // ItemList with video entries
+              if (ld['@type'] === 'ItemList' && Array.isArray(ld.itemListElement)) {
+                for (const el of ld.itemListElement) {
+                  const videoUrl = el.url || '';
+                  const idMatch = videoUrl.match(/video\/(\d{15,25})/);
+                  if (idMatch) ids.add(idMatch[1]);
                 }
               }
-
-              // Log what keys exist in mobile response for debugging
-              if (videoItems.length === 0) {
-                console.log('Mobile scope keys:', Object.keys(mobileScope || mobileData || {}));
-                if (mobileDetail) console.log('Mobile detail keys:', Object.keys(mobileDetail));
-              }
-            } catch { /* parse error */ }
-            break;
+            } catch { /* ignore */ }
           }
         }
 
-        // Fallback: extract video IDs from raw HTML and estimate stats
-        if (videoItems.length === 0) {
-          const videoIdPattern = /video\/(\d{15,25})/g;
-          const ids = new Set<string>();
-          let m;
-          while ((m = videoIdPattern.exec(mobileHtml)) !== null) {
-            ids.add(m[1]);
+        console.log(`Bot scrape found ${ids.size} video IDs`);
+
+        // Use oembed API to get video details for each ID
+        if (ids.size > 0) {
+          const username = user.uniqueId || user.unique_id || '';
+          const idsArr = Array.from(ids).slice(0, 20);
+
+          const oembedResults = await Promise.allSettled(
+            idsArr.map(async (vid) => {
+              const oembedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/@${username}/video/${vid}`;
+              const r = await fetch(oembedUrl);
+              if (!r.ok) return null;
+              const d = await r.json();
+              return { id: vid, ...d };
+            })
+          );
+
+          for (const result of oembedResults) {
+            if (result.status === 'fulfilled' && result.value) {
+              const d = result.value;
+              videoItems.push({
+                id: d.id,
+                description: d.title || '',
+                createTime: 0,
+                cover: d.thumbnail_url || '',
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                plays: 0,
+                duration: 0,
+              });
+            }
           }
-          if (ids.size > 0) {
-            console.log(`Found ${ids.size} video IDs from HTML`);
-            videoItems = Array.from(ids).slice(0, 30).map(id => ({
-              id,
-              description: '',
-              createTime: 0,
-              cover: '',
-              likes: 0,
-              comments: 0,
-              shares: 0,
-              plays: 0,
-              duration: 0,
-            }));
-          }
+          console.log(`Got ${videoItems.length} videos from oembed`);
         }
       } catch (e) {
-        console.error('Mobile scrape failed:', e);
+        console.error('Bot scrape failed:', e);
       }
     }
+
+    // If we still have no per-video stats, estimate from profile-level data
+    const videoCount = stats?.videoCount || user?.videoCount || 0;
+    const totalLikesRaw = stats?.heartCount || stats?.heart || user?.heartCount || 0;
 
     const followers = stats?.followerCount || user?.followerCount || 0;
     const totalLikes = stats?.heartCount || stats?.heart || user?.heartCount || 0;

@@ -27,11 +27,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       {/* Header */}
       <header className="relative z-20 border-b border-border/50">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <span className="text-sm font-bold text-heading tracking-tight">
-              TikTok <span className="text-gradient">Downloader</span>
-            </span>
-          </Link>
+          <div />
 
           <nav className="flex items-center gap-1">
             {navLinks.map((link) => (

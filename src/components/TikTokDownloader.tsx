@@ -552,17 +552,61 @@ export default function TikTokDownloader() {
         />
 
         <BuyMeCoffee />
+
+        {/* How It Works — detailed content section */}
+        <section className="space-y-5">
+          <h2 className="text-lg font-bold text-heading text-center">How to Download TikTok Videos</h2>
+          <div className="space-y-4">
+            {[
+              { step: "1", title: "Copy the TikTok Link", desc: "Open TikTok, find the video you want to save, tap the Share button, and select \"Copy Link\". Both full URLs and short links (vm.tiktok.com) are supported." },
+              { step: "2", title: "Paste & Extract", desc: "Come back here and paste the URL into the input field above. Hit \"Extract\" and we'll analyse the video to find all available quality options — from standard definition up to full 4K resolution." },
+              { step: "3", title: "Choose Quality & Download", desc: "Pick your preferred resolution from the dropdown, then click \"Download Video\". The MP4 file saves directly to your device. On iPhone, it prepares the file first so you can save to your camera roll." },
+            ].map((item) => (
+              <div key={item.step} className="flex gap-4 p-4 rounded-2xl bg-secondary/30 ring-1 ring-border/30">
+                <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 font-bold text-sm">{item.step}</div>
+                <div>
+                  <h3 className="text-sm font-semibold text-heading">{item.title}</h3>
+                  <p className="text-sm text-body mt-1 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Why Use Our Downloader */}
+        <section className="space-y-4">
+          <h2 className="text-lg font-bold text-heading text-center">Why Use Our TikTok Video Downloader?</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {[
+              { title: "No Watermark Downloads", desc: "Unlike screen recording or other tools, we fetch the original source video directly from TikTok's servers — giving you a clean MP4 without the TikTok watermark overlay." },
+              { title: "Multiple Quality Options", desc: "Choose from all available resolutions. If the creator uploaded in 4K, you can download in 4K. We show the exact resolution and bitrate for each option." },
+              { title: "Works on All Devices", desc: "Our downloader is fully responsive and works on desktop, Android, and iOS. iPhone users get special handling that lets you save videos directly to your camera roll." },
+              { title: "No Registration Required", desc: "Start downloading immediately — no sign-up, no app install, no browser extension. Just paste a link and save your video in seconds." },
+              { title: "Fast & Secure", desc: "Videos are proxied in real-time and never stored on our servers. Your download starts instantly and your privacy is fully protected." },
+              { title: "Completely Free", desc: "There are no hidden fees, no download limits, and no premium tiers. Every feature is available to every user, forever." },
+            ].map((item) => (
+              <div key={item.title} className="p-4 rounded-2xl bg-secondary/30 ring-1 ring-border/30">
+                <h3 className="text-sm font-semibold text-heading">{item.title}</h3>
+                <p className="text-xs text-body mt-1.5 leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Ad placed AFTER substantial content */}
         <AdBanner />
 
-        {/* FAQ */}
+        {/* FAQ — expanded answers */}
         {(() => {
           const faqs = [
-            { q: "How does this work?", a: "Paste a TikTok video link and we extract the direct MP4 stream from TikTok's servers. No account or login required." },
-            { q: "What formats are supported?", a: "Videos are downloaded as MP4 files, which play on virtually every device and platform." },
-            { q: "Is the watermark removed?", a: "Yes — we fetch the original HD source without the TikTok watermark whenever available." },
-            { q: "Is it free?", a: "100% free with no limits. If you find it useful, consider buying us a coffee!" },
-            { q: "Does it work on iPhone?", a: "Yes! On iOS the download button prepares the file so you can save it to your camera roll or share it directly." },
-            { q: "Why did my download fail?", a: "Some videos are private, region-locked, or have expired links. Try refreshing the extraction or check if the video is still public on TikTok." },
+            { q: "How does this work?", a: "Paste a TikTok video link and we extract the direct MP4 stream from TikTok's servers. No account or login required. We support all public TikTok videos including those shared via short links." },
+            { q: "What formats are supported?", a: "Videos are downloaded as MP4 files, which play on virtually every device and platform including Windows, Mac, iOS, Android, and Linux." },
+            { q: "Is the watermark removed?", a: "Yes — we fetch the original HD source without the TikTok watermark whenever available. The downloaded file is the same clean version the creator uploaded." },
+            { q: "Is it free?", a: "100% free with no limits or hidden fees. We sustain the service through non-intrusive advertising. If you find it useful, consider buying us a coffee!" },
+            { q: "Does it work on iPhone?", a: "Yes! On iOS the download button prepares the file first so you can save it to your camera roll via the share sheet, or share it directly through AirDrop, Messages, and other apps." },
+            { q: "Why did my download fail?", a: "Some videos are private, region-locked, or have expired links. Try refreshing the extraction or check if the video is still public on TikTok. If the issue persists, the creator may have restricted downloads." },
+            { q: "Do you store my downloaded videos?", a: "No. All videos are proxied in real-time directly from TikTok's servers to your device. We never store video content on our servers. Your recent download history is saved locally in your browser only." },
+            { q: "Can I download TikTok slideshows or photo posts?", a: "Currently, our tool supports standard TikTok video posts. Photo slideshows and live streams are not yet supported, but we're working on adding these features." },
           ];
           const jsonLd = {
             "@context": "https://schema.org",

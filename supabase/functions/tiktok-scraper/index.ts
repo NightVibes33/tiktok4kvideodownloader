@@ -3,16 +3,36 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-const kv = await Deno.openKv();
+// In-memory rate limiting (resets on cold start, acceptable for edge functions)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-// Rate limiting: max 20 requests per IP per minute
-async function checkRateLimit(ip: string): Promise<boolean> {
-  const key = ["rate", "scraper", ip];
-  const entry = await kv.get<number>(key);
-  const count = entry.value ?? 0;
-  if (count >= 20) return false;
-  await kv.set(key, count + 1, { expireIn: 60_000 });
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= 20) return false;
+  entry.count++;
   return true;
+}
+
+// In-memory cookie store (TTL 5 minutes)
+const cookieStore = new Map<string, { cookies: string; expiresAt: number }>();
+
+function storeCookies(token: string, cookies: string) {
+  cookieStore.set(token, { cookies, expiresAt: Date.now() + 300_000 });
+}
+
+function getCookies(token: string): string | null {
+  const entry = cookieStore.get(token);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cookieStore.delete(token);
+    return null;
+  }
+  return entry.cookies;
 }
 
 interface QualityOption {
@@ -28,7 +48,6 @@ function extractQualities(video: any): QualityOption[] {
   const qualities: QualityOption[] = [];
   const seenLabels = new Set<string>();
 
-  // 1. Extract from bitrateInfo array (multiple quality tiers)
   const bitrateInfo = video?.bitrateInfo || video?.bitRateInfo || [];
   if (Array.isArray(bitrateInfo) && bitrateInfo.length > 0) {
     for (const br of bitrateInfo) {
@@ -51,7 +70,6 @@ function extractQualities(video: any): QualityOption[] {
         else label = `${maxDim}p`;
       }
 
-      // Normalize labels
       if (label === 'normal') label = '540p';
       if (label.includes('720')) label = '720p HD';
       if (label.includes('1080')) label = '1080p HD';
@@ -64,7 +82,6 @@ function extractQualities(video: any): QualityOption[] {
     }
   }
 
-  // 2. Extract from playAddr (no watermark)
   const playAddrList = video?.playAddr?.UrlList || video?.PlayAddr?.UrlList || [];
   const playUrl = playAddrList[0] || (typeof video?.playAddr === 'string' ? video.playAddr : '');
   if (playUrl && !qualities.some(q => q.url === playUrl)) {
@@ -83,7 +100,6 @@ function extractQualities(video: any): QualityOption[] {
     }
   }
 
-  // Sort by resolution then bitrate
   qualities.sort((a, b) => {
     const resA = Math.max(a.width, a.height);
     const resB = Math.max(b.width, b.height);
@@ -97,7 +113,6 @@ function extractQualities(video: any): QualityOption[] {
 function buildResult(itemInfo: any, parsedVideo: any, cookieToken: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
-
   const bestUrl = qualities[0]?.url || video?.downloadAddr || video?.playAddr || '';
 
   return {
@@ -129,9 +144,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Rate limiting
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-    if (!(await checkRateLimit(ip))) {
+    if (!checkRateLimit(ip)) {
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -147,7 +161,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Must be a tiktok.com page URL, not a CDN/proxy/download link
     const trimmed = url.trim();
     const isValidTikTokPage = /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(trimmed);
     if (!isValidTikTokPage) {
@@ -173,15 +186,13 @@ Deno.serve(async (req) => {
 
     const response = await fetch(url, { headers, redirect: 'follow' });
 
-    // Capture cookies and store server-side with a token
     const setCookieHeaders = response.headers.getSetCookie?.() || [];
     const cookies = setCookieHeaders.map((c: string) => c.split(';')[0]).join('; ');
-    
-    // Store cookies in KV with a random token (TTL 5 minutes)
+
     let cookieToken = '';
     if (cookies) {
       cookieToken = crypto.randomUUID();
-      await kv.set(["cookies", cookieToken], cookies, { expireIn: 300_000 });
+      storeCookies(cookieToken, cookies);
     }
 
     const html = await response.text();
@@ -210,7 +221,6 @@ Deno.serve(async (req) => {
 
     const parsedData = JSON.parse(scriptData);
 
-    // Path 1: __UNIVERSAL_DATA_FOR_REHYDRATION__
     const videoDetail = parsedData?.__DEFAULT_SCOPE__?.['webapp.video-detail'];
     if (videoDetail && videoDetail.statusCode === 0) {
       const itemInfo = videoDetail.itemInfo?.itemStruct;
@@ -224,7 +234,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Path 2: SIGI_STATE
     const itemModule = parsedData?.ItemModule;
     if (itemModule) {
       const firstKey = Object.keys(itemModule)[0];

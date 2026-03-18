@@ -42,7 +42,7 @@ interface VideoData {
     shareCount?: number;
     playCount?: number;
   };
-  cookies: string;
+  cookieToken: string;
 }
 
 /* ── Helpers ── */

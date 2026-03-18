@@ -18,21 +18,25 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-// In-memory cookie store (TTL 5 minutes)
-const cookieStore = new Map<string, { cookies: string; expiresAt: number }>();
-
-function storeCookies(token: string, cookies: string) {
-  cookieStore.set(token, { cookies, expiresAt: Date.now() + 300_000 });
-}
-
-function getCookies(token: string): string | null {
-  const entry = cookieStore.get(token);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    cookieStore.delete(token);
-    return null;
-  }
-  return entry.cookies;
+// Encrypt cookies so they can be passed to the download function securely
+async function encryptCookies(cookies: string): Promise<string> {
+  const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw', encoder.encode(secret.slice(0, 32).padEnd(32, '0')),
+    { name: 'AES-GCM' }, false, ['encrypt']
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    keyMaterial,
+    encoder.encode(cookies)
+  );
+  // Combine iv + ciphertext, base64url encode
+  const combined = new Uint8Array(iv.length + new Uint8Array(encrypted).length);
+  combined.set(iv);
+  combined.set(new Uint8Array(encrypted), iv.length);
+  return btoa(String.fromCharCode(...combined)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 interface QualityOption {
@@ -110,7 +114,7 @@ function extractQualities(video: any): QualityOption[] {
   return qualities;
 }
 
-function buildResult(itemInfo: any, parsedVideo: any, cookieToken: string) {
+function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
   const bestUrl = qualities[0]?.url || video?.downloadAddr || video?.playAddr || '';
@@ -134,7 +138,7 @@ function buildResult(itemInfo: any, parsedVideo: any, cookieToken: string) {
     },
     qualities,
     stats: itemInfo?.stats || {},
-    cookieToken,
+    cookieToken: encryptedCookies,
   };
 }
 
@@ -189,10 +193,9 @@ Deno.serve(async (req) => {
     const setCookieHeaders = response.headers.getSetCookie?.() || [];
     const cookies = setCookieHeaders.map((c: string) => c.split(';')[0]).join('; ');
 
-    let cookieToken = '';
+    let encryptedCookies = '';
     if (cookies) {
-      cookieToken = crypto.randomUUID();
-      storeCookies(cookieToken, cookies);
+      encryptedCookies = await encryptCookies(cookies);
     }
 
     const html = await response.text();
@@ -225,7 +228,7 @@ Deno.serve(async (req) => {
     if (videoDetail && videoDetail.statusCode === 0) {
       const itemInfo = videoDetail.itemInfo?.itemStruct;
       if (itemInfo) {
-        const result = buildResult(itemInfo, null, cookieToken);
+        const result = buildResult(itemInfo, null, encryptedCookies);
         console.log(`Extracted ${result.qualities.length} quality options`);
         return new Response(
           JSON.stringify(result),
@@ -248,7 +251,7 @@ Deno.serve(async (req) => {
             avatarThumb: authorModule?.avatarThumb || '',
           },
         };
-        const result = buildResult(itemWithAuthor, item.video, cookieToken);
+        const result = buildResult(itemWithAuthor, item.video, encryptedCookies);
         console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
         return new Response(
           JSON.stringify(result),

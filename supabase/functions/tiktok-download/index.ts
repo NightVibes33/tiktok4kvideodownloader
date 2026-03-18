@@ -20,18 +20,33 @@ function checkRateLimit(ip: string): boolean {
   return true;
 }
 
-// In-memory cookie store (shared with scraper via cookieToken won't work cross-function,
-// but download function receives cookies via the scraper's token — we store them here too)
-const cookieStore = new Map<string, { cookies: string; expiresAt: number }>();
+// Decrypt cookies from the encrypted token passed by the scraper
+async function decryptCookies(encryptedToken: string): Promise<string | null> {
+  try {
+    const secret = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+    // Restore base64 from base64url
+    let b64 = encryptedToken.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const combined = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
 
-function getCookies(token: string): string | null {
-  const entry = cookieStore.get(token);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    cookieStore.delete(token);
+    const iv = combined.slice(0, 12);
+    const ciphertext = combined.slice(12);
+
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw', encoder.encode(secret.slice(0, 32).padEnd(32, '0')),
+      { name: 'AES-GCM' }, false, ['decrypt']
+    );
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv },
+      keyMaterial,
+      ciphertext
+    );
+    return new TextDecoder().decode(decrypted);
+  } catch (e) {
+    console.error('Cookie decryption failed:', e);
     return null;
   }
-  return entry.cookies;
 }
 
 function validateVideoUrl(videoUrl: string): URL | null {
@@ -112,9 +127,9 @@ Deno.serve(async (req) => {
       fetchHeaders['Range'] = requestedRange;
     }
 
-    // Try to retrieve cookies from in-memory store
+    // Decrypt cookies from the encrypted token
     if (cookieToken) {
-      const cookies = getCookies(cookieToken);
+      const cookies = await decryptCookies(cookieToken);
       if (cookies) {
         fetchHeaders['Cookie'] = cookies;
       }

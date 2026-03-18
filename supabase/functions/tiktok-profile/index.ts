@@ -328,20 +328,33 @@ Deno.serve(async (req) => {
     const totalLikesRaw = stats?.heartCount || stats?.heart || user?.heartCount || 0;
 
     const followers = stats?.followerCount || user?.followerCount || 0;
-    const totalLikes = stats?.heartCount || stats?.heart || user?.heartCount || 0;
 
     // Compute engagement metrics
-    const avgLikes = videoItems.length > 0 ? Math.round(videoItems.reduce((s, v) => s + v.likes, 0) / videoItems.length) : 0;
-    const avgComments = videoItems.length > 0 ? Math.round(videoItems.reduce((s, v) => s + v.comments, 0) / videoItems.length) : 0;
-    const avgShares = videoItems.length > 0 ? Math.round(videoItems.reduce((s, v) => s + v.shares, 0) / videoItems.length) : 0;
-    const avgPlays = videoItems.length > 0 ? Math.round(videoItems.reduce((s, v) => s + v.plays, 0) / videoItems.length) : 0;
+    // If we have per-video stats, use them. Otherwise estimate from profile totals.
+    const hasPerVideoStats = videoItems.some(v => v.likes > 0 || v.plays > 0);
+    
+    let avgLikes: number, avgComments: number, avgShares: number, avgPlays: number;
+    
+    if (hasPerVideoStats) {
+      avgLikes = Math.round(videoItems.reduce((s, v) => s + v.likes, 0) / videoItems.length);
+      avgComments = Math.round(videoItems.reduce((s, v) => s + v.comments, 0) / videoItems.length);
+      avgShares = Math.round(videoItems.reduce((s, v) => s + v.shares, 0) / videoItems.length);
+      avgPlays = Math.round(videoItems.reduce((s, v) => s + v.plays, 0) / videoItems.length);
+    } else {
+      // Estimate from profile-level totals
+      const vc = videoCount || videoItems.length || 1;
+      avgLikes = Math.round(totalLikesRaw / vc);
+      avgComments = Math.round(avgLikes * 0.03); // ~3% comment-to-like ratio (industry avg)
+      avgShares = Math.round(avgLikes * 0.01);   // ~1% share-to-like ratio
+      avgPlays = Math.round(avgLikes * 8);        // ~12.5% like-to-view ratio
+    }
 
     const totalInteractions = avgLikes + avgComments + avgShares;
     const engagementRate = followers > 0 ? Math.round((totalInteractions / followers) * 10000) / 100 : 0;
 
-    const topVideos = [...videoItems]
-      .sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares))
-      .slice(0, 5);
+    const topVideos = hasPerVideoStats
+      ? [...videoItems].sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares)).slice(0, 5)
+      : videoItems.slice(0, 5);
 
     const bestPostingTimes = analyzePostingTimes(videoItems);
     const postingFrequency = analyzeFrequency(videoItems);

@@ -1,5 +1,10 @@
+import SiteLayout from "@/components/SiteLayout";
 import TikTokDownloader from "@/components/TikTokDownloader";
 
-const Index = () => <TikTokDownloader />;
+const Index = () => (
+  <SiteLayout>
+    <TikTokDownloader />
+  </SiteLayout>
+);
 
 export default Index;

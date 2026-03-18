@@ -5,16 +5,33 @@ const corsHeaders = {
 
 const ALLOWED_HOSTS = /\.(tiktokcdn\.com|tiktokv\.com|tiktok\.com|akamaized\.net|tiktokcdn-us\.com|tiktokcdn-eu\.com|musical\.ly|byteoversea\.com|ibytedtos\.com|byteimg\.com|ipstatp\.com)$/i;
 
-const kv = await Deno.openKv();
+// In-memory rate limiting
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
-// Rate limiting: max 30 requests per IP per minute
-async function checkRateLimit(ip: string): Promise<boolean> {
-  const key = ["rate", "download", ip];
-  const entry = await kv.get<number>(key);
-  const count = entry.value ?? 0;
-  if (count >= 30) return false;
-  await kv.set(key, count + 1, { expireIn: 60_000 });
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= 30) return false;
+  entry.count++;
   return true;
+}
+
+// In-memory cookie store (shared with scraper via cookieToken won't work cross-function,
+// but download function receives cookies via the scraper's token — we store them here too)
+const cookieStore = new Map<string, { cookies: string; expiresAt: number }>();
+
+function getCookies(token: string): string | null {
+  const entry = cookieStore.get(token);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cookieStore.delete(token);
+    return null;
+  }
+  return entry.cookies;
 }
 
 function validateVideoUrl(videoUrl: string): URL | null {
@@ -34,9 +51,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Rate limiting
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
-    if (!(await checkRateLimit(ip))) {
+    if (!checkRateLimit(ip)) {
       return new Response(
         JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -74,7 +90,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // SSRF protection: validate URL is a TikTok CDN host
     const validatedUrl = validateVideoUrl(videoUrl);
     if (!validatedUrl) {
       return new Response(
@@ -97,11 +112,11 @@ Deno.serve(async (req) => {
       fetchHeaders['Range'] = requestedRange;
     }
 
-    // Retrieve cookies from server-side KV store instead of client
+    // Try to retrieve cookies from in-memory store
     if (cookieToken) {
-      const cookieEntry = await kv.get<string>(["cookies", cookieToken]);
-      if (cookieEntry.value) {
-        fetchHeaders['Cookie'] = cookieEntry.value;
+      const cookies = getCookies(cookieToken);
+      if (cookies) {
+        fetchHeaders['Cookie'] = cookies;
       }
     }
 

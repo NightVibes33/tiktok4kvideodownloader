@@ -90,12 +90,15 @@ function StatCard({ icon: Icon, label, value, accent = false }: {
   );
 }
 
-function EngagementCard({ data }: { data: ProfileData["engagement"] }) {
+function EngagementCard({ data, isEstimated }: { data: ProfileData["engagement"]; isEstimated: boolean }) {
   return (
     <div className="space-y-4">
       <h3 className="text-sm font-semibold text-heading flex items-center gap-2">
         <BarChart3 className="w-4 h-4 text-primary" />
         Engagement Metrics
+        {isEstimated && (
+          <span className="text-[9px] text-dim font-mono bg-secondary px-2 py-0.5 rounded-full">ESTIMATED</span>
+        )}
       </h3>
       <div className="grid grid-cols-2 gap-2">
         <StatCard icon={Heart} label="Avg Likes" value={fmt(data.avgLikes)} />
@@ -110,6 +113,11 @@ function EngagementCard({ data }: { data: ProfileData["engagement"] }) {
           {data.engagementRate > 5 ? "🔥 Excellent" : data.engagementRate > 2 ? "✅ Good" : data.engagementRate > 1 ? "📊 Average" : "📉 Below average"}
         </p>
       </div>
+      {isEstimated && (
+        <p className="text-[10px] text-dim text-center font-mono">
+          Estimates based on total likes ÷ video count. Comments & shares use industry averages.
+        </p>
+      )}
     </div>
   );
 }

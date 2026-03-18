@@ -396,14 +396,7 @@ export default function TikTokDownloader() {
   const downloadUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, true) : "";
 
   return (
-    <main className="min-h-svh bg-background text-foreground selection:bg-primary/30 selection:text-primary-foreground p-4 sm:p-6 flex flex-col items-center">
-      {/* Background effects */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-accent/5 rounded-full blur-[100px]" />
-      </div>
-
-      <div className="w-full max-w-xl space-y-8 relative z-10 pt-8 sm:pt-16">
+    <div className="w-full max-w-xl mx-auto space-y-8 selection:bg-primary/30 selection:text-primary-foreground">
         {/* Header */}
         <div className="space-y-4 text-center">
           <div className="flex justify-center">

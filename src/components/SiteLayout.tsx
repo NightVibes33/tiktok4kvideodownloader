@@ -28,12 +28,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <header className="relative z-20 border-b border-border/50">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2.5 group">
-            <img
-              src={tiktokLogo}
-              alt="TikTok 4K Video Downloader"
-              className="w-8 h-8 rounded-lg ring-1 ring-primary/20"
-            />
-            <span className="text-sm font-bold text-heading tracking-tight hidden sm:inline">
+            <span className="text-sm font-bold text-heading tracking-tight">
               TikTok <span className="text-gradient">Downloader</span>
             </span>
           </Link>

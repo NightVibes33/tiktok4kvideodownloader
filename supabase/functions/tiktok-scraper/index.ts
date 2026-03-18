@@ -3,6 +3,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+const kv = await Deno.openKv();
+
+// Rate limiting: max 20 requests per IP per minute
+async function checkRateLimit(ip: string): Promise<boolean> {
+  const key = ["rate", "scraper", ip];
+  const entry = await kv.get<number>(key);
+  const count = entry.value ?? 0;
+  if (count >= 20) return false;
+  await kv.set(key, count + 1, { expireIn: 60_000 });
+  return true;
+}
+
 interface QualityOption {
   label: string;
   url: string;
@@ -82,7 +94,7 @@ function extractQualities(video: any): QualityOption[] {
   return qualities;
 }
 
-function buildResult(itemInfo: any, parsedVideo: any, cookies: string) {
+function buildResult(itemInfo: any, parsedVideo: any, cookieToken: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
 
@@ -107,7 +119,7 @@ function buildResult(itemInfo: any, parsedVideo: any, cookies: string) {
     },
     qualities,
     stats: itemInfo?.stats || {},
-    cookies,
+    cookieToken,
   };
 }
 
@@ -117,6 +129,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Rate limiting
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    if (!(await checkRateLimit(ip))) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { url } = await req.json();
 
     if (!url) {
@@ -152,9 +173,16 @@ Deno.serve(async (req) => {
 
     const response = await fetch(url, { headers, redirect: 'follow' });
 
-    // Capture cookies for download proxy
+    // Capture cookies and store server-side with a token
     const setCookieHeaders = response.headers.getSetCookie?.() || [];
     const cookies = setCookieHeaders.map((c: string) => c.split(';')[0]).join('; ');
+    
+    // Store cookies in KV with a random token (TTL 5 minutes)
+    let cookieToken = '';
+    if (cookies) {
+      cookieToken = crypto.randomUUID();
+      await kv.set(["cookies", cookieToken], cookies, { expireIn: 300_000 });
+    }
 
     const html = await response.text();
 
@@ -187,7 +215,7 @@ Deno.serve(async (req) => {
     if (videoDetail && videoDetail.statusCode === 0) {
       const itemInfo = videoDetail.itemInfo?.itemStruct;
       if (itemInfo) {
-        const result = buildResult(itemInfo, null, cookies);
+        const result = buildResult(itemInfo, null, cookieToken);
         console.log(`Extracted ${result.qualities.length} quality options`);
         return new Response(
           JSON.stringify(result),
@@ -211,7 +239,7 @@ Deno.serve(async (req) => {
             avatarThumb: authorModule?.avatarThumb || '',
           },
         };
-        const result = buildResult(itemWithAuthor, item.video, cookies);
+        const result = buildResult(itemWithAuthor, item.video, cookieToken);
         console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
         return new Response(
           JSON.stringify(result),
@@ -226,9 +254,8 @@ Deno.serve(async (req) => {
     );
   } catch (error) {
     console.error('Scraping error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch video data';
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: 'Failed to fetch video data. Please try again.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

@@ -42,7 +42,7 @@ interface VideoData {
     shareCount?: number;
     playCount?: number;
   };
-  cookies: string;
+  cookieToken: string;
 }
 
 /* ── Helpers ── */
@@ -63,7 +63,7 @@ function buildVideoProxyUrl(videoData: VideoData, quality: QualityOption, downlo
     apikey: anonKey,
   });
   if (download) params.set("download", "1");
-  if (videoData.cookies) params.set("cookies", videoData.cookies);
+  if (videoData.cookieToken) params.set("cookieToken", videoData.cookieToken);
   return `${supabaseUrl}/functions/v1/tiktok-download?${params.toString()}`;
 }
 

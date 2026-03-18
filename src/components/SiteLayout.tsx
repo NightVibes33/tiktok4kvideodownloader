@@ -1,5 +1,4 @@
 import { Link, useLocation } from "react-router-dom";
-import tiktokLogo from "@/assets/tiktok-logo.jpeg";
 
 const navLinks = [
   { to: "/", label: "Home" },

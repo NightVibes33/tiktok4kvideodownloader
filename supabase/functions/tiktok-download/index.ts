@@ -3,22 +3,56 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, range',
 };
 
+const ALLOWED_HOSTS = /\.(tiktokcdn\.com|tiktokv\.com|tiktok\.com|akamaized\.net|tiktokcdn-us\.com|tiktokcdn-eu\.com|musical\.ly|byteoversea\.com|ibytedtos\.com|byteimg\.com|ipstatp\.com)$/i;
+
+const kv = await Deno.openKv();
+
+// Rate limiting: max 30 requests per IP per minute
+async function checkRateLimit(ip: string): Promise<boolean> {
+  const key = ["rate", "download", ip];
+  const entry = await kv.get<number>(key);
+  const count = entry.value ?? 0;
+  if (count >= 30) return false;
+  await kv.set(key, count + 1, { expireIn: 60_000 });
+  return true;
+}
+
+function validateVideoUrl(videoUrl: string): URL | null {
+  try {
+    const parsed = new URL(videoUrl);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+    if (!ALLOWED_HOSTS.test(parsed.hostname)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limiting
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    if (!(await checkRateLimit(ip))) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     let videoUrl: string | null = null;
     let filename: string | null = null;
-    let cookies: string | null = null;
+    let cookieToken: string | null = null;
     let shouldDownload = false;
 
     const parsedUrl = new URL(req.url);
 
     videoUrl = parsedUrl.searchParams.get('videoUrl');
     filename = parsedUrl.searchParams.get('filename');
-    cookies = parsedUrl.searchParams.get('cookies');
+    cookieToken = parsedUrl.searchParams.get('cookieToken');
     shouldDownload = parsedUrl.searchParams.get('download') === '1';
 
     if (!videoUrl && req.method === 'POST') {
@@ -26,7 +60,7 @@ Deno.serve(async (req) => {
         const body = await req.json();
         videoUrl = body.videoUrl || null;
         filename = body.filename || null;
-        cookies = body.cookies || null;
+        cookieToken = body.cookieToken || null;
         shouldDownload = body.download === true;
       } catch {
         // Ignore non-JSON body
@@ -36,6 +70,15 @@ Deno.serve(async (req) => {
     if (!videoUrl) {
       return new Response(
         JSON.stringify({ error: 'Video URL is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // SSRF protection: validate URL is a TikTok CDN host
+    const validatedUrl = validateVideoUrl(videoUrl);
+    if (!validatedUrl) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid video URL. Only TikTok CDN URLs are allowed.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -54,8 +97,12 @@ Deno.serve(async (req) => {
       fetchHeaders['Range'] = requestedRange;
     }
 
-    if (cookies) {
-      fetchHeaders['Cookie'] = cookies;
+    // Retrieve cookies from server-side KV store instead of client
+    if (cookieToken) {
+      const cookieEntry = await kv.get<string>(["cookies", cookieToken]);
+      if (cookieEntry.value) {
+        fetchHeaders['Cookie'] = cookieEntry.value;
+      }
     }
 
     const upstreamResponse = await fetch(videoUrl, {

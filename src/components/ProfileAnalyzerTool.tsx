@@ -379,18 +379,22 @@ export default function ProfileAnalyzerTool() {
 
           {/* Engagement */}
           <div className="surface-elevated rounded-2xl p-5">
-            <EngagementCard data={profile.engagement} />
+            <EngagementCard data={profile.engagement} isEstimated={profile.videos.length === 0 || !profile.videos.some(v => v.likes > 0)} />
           </div>
 
           {/* Best posting times */}
-          <div className="surface-elevated rounded-2xl p-5">
-            <BestTimesCard times={profile.bestPostingTimes} frequency={profile.postingFrequency} />
-          </div>
+          {profile.bestPostingTimes.length > 0 && (
+            <div className="surface-elevated rounded-2xl p-5">
+              <BestTimesCard times={profile.bestPostingTimes} frequency={profile.postingFrequency} />
+            </div>
+          )}
 
           {/* Top videos */}
-          <div className="surface-elevated rounded-2xl p-5">
-            <TopVideos videos={profile.engagement.topVideos} />
-          </div>
+          {profile.engagement.topVideos.length > 0 && profile.engagement.topVideos.some(v => v.likes > 0) && (
+            <div className="surface-elevated rounded-2xl p-5">
+              <TopVideos videos={profile.engagement.topVideos} />
+            </div>
+          )}
         </div>
       )}
 

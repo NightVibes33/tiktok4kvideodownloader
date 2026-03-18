@@ -243,85 +243,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // TikTok doesn't include videos in rehydration data for profiles.
-    // Try fetching with a bot-like UA that triggers SSR with video data.
-    if (videoItems.length === 0) {
-      try {
-        const botHeaders = {
-          'User-Agent': 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
-          'Accept': 'text/html,application/xhtml+xml',
-          'Accept-Language': 'en-US,en;q=0.9',
-        };
-
-        const botResponse = await fetch(profileUrl, { headers: botHeaders, redirect: 'follow' });
-        const botHtml = await botResponse.text();
-
-        // Extract video IDs from og:video or structured data in bot response
-        const videoIdPattern = /video\/(\d{15,25})/g;
-        const ids = new Set<string>();
-        let m;
-        while ((m = videoIdPattern.exec(botHtml)) !== null) {
-          ids.add(m[1]);
-        }
-
-        // Also look for JSON-LD with video data
-        const jsonLdMatch = botHtml.match(/<script\s+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g);
-        if (jsonLdMatch) {
-          for (const block of jsonLdMatch) {
-            try {
-              const content = block.replace(/<script[^>]*>/, '').replace(/<\/script>/, '');
-              const ld = JSON.parse(content);
-              // ItemList with video entries
-              if (ld['@type'] === 'ItemList' && Array.isArray(ld.itemListElement)) {
-                for (const el of ld.itemListElement) {
-                  const videoUrl = el.url || '';
-                  const idMatch = videoUrl.match(/video\/(\d{15,25})/);
-                  if (idMatch) ids.add(idMatch[1]);
-                }
-              }
-            } catch { /* ignore */ }
-          }
-        }
-
-        console.log(`Bot scrape found ${ids.size} video IDs`);
-
-        // Use oembed API to get video details for each ID
-        if (ids.size > 0) {
-          const username = user.uniqueId || user.unique_id || '';
-          const idsArr = Array.from(ids).slice(0, 20);
-
-          const oembedResults = await Promise.allSettled(
-            idsArr.map(async (vid) => {
-              const oembedUrl = `https://www.tiktok.com/oembed?url=https://www.tiktok.com/@${username}/video/${vid}`;
-              const r = await fetch(oembedUrl);
-              if (!r.ok) return null;
-              const d = await r.json();
-              return { id: vid, ...d };
-            })
-          );
-
-          for (const result of oembedResults) {
-            if (result.status === 'fulfilled' && result.value) {
-              const d = result.value;
-              videoItems.push({
-                id: d.id,
-                description: d.title || '',
-                createTime: 0,
-                cover: d.thumbnail_url || '',
-                likes: 0,
-                comments: 0,
-                shares: 0,
-                plays: 0,
-                duration: 0,
-              });
-            }
-          }
-          console.log(`Got ${videoItems.length} videos from oembed`);
-        }
-      } catch (e) {
-        console.error('Bot scrape failed:', e);
-      }
-    }
+    // TikTok doesn't include video list data in profile page HTML.
+    // Engagement is estimated from profile-level stats (total likes / video count).
 
     // If we still have no per-video stats, estimate from profile-level data
     const videoCount = stats?.videoCount || user?.videoCount || 0;

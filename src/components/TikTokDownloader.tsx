@@ -590,13 +590,6 @@ export default function TikTokDownloader() {
           );
         })()}
 
-        {/* Footer */}
-        <footer className="text-center pb-6">
-          <p className="text-[10px] text-dim font-mono uppercase tracking-widest">
-            Built with ♥ · Not affiliated with TikTok
-          </p>
-        </footer>
-      </div>
-    </main>
+    </div>
   );
 }

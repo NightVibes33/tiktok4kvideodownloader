@@ -243,43 +243,91 @@ Deno.serve(async (req) => {
       );
     }
 
-    // If we don't have videos yet, fetch them via TikTok's internal API
-    if (videoItems.length === 0 && user.secUid) {
+    // If we don't have videos yet, try scraping with mobile UA (returns inline video data)
+    if (videoItems.length === 0) {
       try {
-        const secUid = user.secUid;
-        const apiUrl = `https://www.tiktok.com/api/post/item_list/?WebIdLastTime=${Math.floor(Date.now() / 1000)}&aid=1988&count=30&secUid=${encodeURIComponent(secUid)}&cursor=0&cookie_enabled=true&screen_width=1920&screen_height=1080&browser_language=en-US&browser_platform=MacIntel&browser_name=Mozilla&browser_version=5.0&browser_online=true&region=US&language=en`;
-
-        const apiHeaders: Record<string, string> = {
-          'User-Agent': headers['User-Agent'],
-          'Accept': 'application/json, text/plain, */*',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Referer': profileUrl,
-          'Origin': 'https://www.tiktok.com',
+        const mobileHeaders = {
+          ...headers,
+          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
         };
-        if (cookies) apiHeaders['Cookie'] = cookies;
 
-        console.log('Fetching videos via API for secUid:', secUid.substring(0, 20) + '...');
-        const apiResponse = await fetch(apiUrl, { headers: apiHeaders });
-        const apiData = await apiResponse.json();
+        const mobileResponse = await fetch(profileUrl, { headers: mobileHeaders, redirect: 'follow' });
+        const mobileHtml = await mobileResponse.text();
 
-        console.log('API response status:', apiData.statusCode, 'hasMore:', apiData.hasMore, 'items:', apiData.itemList?.length || 0);
+        // Extract video data from mobile page
+        for (const pattern of patterns) {
+          const match = mobileHtml.match(pattern);
+          if (match) {
+            try {
+              const mobileData = JSON.parse(match[1]);
+              const mobileScope = mobileData?.__DEFAULT_SCOPE__;
+              const mobileDetail = mobileScope?.['webapp.user-detail'];
 
-        if (apiData.itemList && Array.isArray(apiData.itemList)) {
-          videoItems = apiData.itemList.map((item: any) => ({
-            id: item.id || '',
-            description: item.desc || '',
-            createTime: item.createTime || 0,
-            cover: item.video?.cover || item.video?.originCover || '',
-            likes: item.stats?.diggCount || 0,
-            comments: item.stats?.commentCount || 0,
-            shares: item.stats?.shareCount || 0,
-            plays: item.stats?.playCount || 0,
-            duration: item.video?.duration || 0,
-          }));
+              // Check all possible item locations in the mobile response
+              const candidates = [
+                mobileDetail?.itemList,
+                mobileScope?.['webapp.user-post']?.itemList,
+                mobileScope?.['webapp.video-list']?.itemList,
+              ];
+
+              // Also try SIGI format
+              if (mobileData?.ItemModule) {
+                candidates.push(Object.values(mobileData.ItemModule));
+              }
+
+              for (const items of candidates) {
+                if (Array.isArray(items) && items.length > 0) {
+                  videoItems = items.map((item: any) => ({
+                    id: item.id || '',
+                    description: item.desc || '',
+                    createTime: item.createTime || 0,
+                    cover: item.video?.cover || item.video?.originCover || '',
+                    likes: item.stats?.diggCount || 0,
+                    comments: item.stats?.commentCount || 0,
+                    shares: item.stats?.shareCount || 0,
+                    plays: item.stats?.playCount || 0,
+                    duration: item.video?.duration || 0,
+                  }));
+                  console.log(`Found ${videoItems.length} videos via mobile scrape`);
+                  break;
+                }
+              }
+
+              // Log what keys exist in mobile response for debugging
+              if (videoItems.length === 0) {
+                console.log('Mobile scope keys:', Object.keys(mobileScope || mobileData || {}));
+                if (mobileDetail) console.log('Mobile detail keys:', Object.keys(mobileDetail));
+              }
+            } catch { /* parse error */ }
+            break;
+          }
         }
-      } catch (apiError) {
-        console.error('Failed to fetch videos via API:', apiError);
-        // Continue without videos — profile stats are still useful
+
+        // Fallback: extract video IDs from raw HTML and estimate stats
+        if (videoItems.length === 0) {
+          const videoIdPattern = /video\/(\d{15,25})/g;
+          const ids = new Set<string>();
+          let m;
+          while ((m = videoIdPattern.exec(mobileHtml)) !== null) {
+            ids.add(m[1]);
+          }
+          if (ids.size > 0) {
+            console.log(`Found ${ids.size} video IDs from HTML`);
+            videoItems = Array.from(ids).slice(0, 30).map(id => ({
+              id,
+              description: '',
+              createTime: 0,
+              cover: '',
+              likes: 0,
+              comments: 0,
+              shares: 0,
+              plays: 0,
+              duration: 0,
+            }));
+          }
+        }
+      } catch (e) {
+        console.error('Mobile scrape failed:', e);
       }
     }
 

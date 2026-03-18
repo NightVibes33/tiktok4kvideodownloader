@@ -367,7 +367,7 @@ Deno.serve(async (req) => {
       verified: user.verified || false,
       followers,
       following: stats?.followingCount || user?.followingCount || 0,
-      likes: totalLikes,
+      likes: totalLikesRaw,
       videoCount: stats?.videoCount || user?.videoCount || 0,
       videos: videoItems,
       engagement: {

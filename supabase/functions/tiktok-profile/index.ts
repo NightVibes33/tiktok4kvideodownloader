@@ -143,8 +143,8 @@ Deno.serve(async (req) => {
     }
 
     const trimmed = url.trim();
-    // Accept profile URLs like tiktok.com/@username
-    const isProfileUrl = /^https?:\/\/(www\.)?tiktok\.com\/@[\w.]+\/?$/i.test(trimmed);
+    // Accept profile URLs like tiktok.com/@username (with optional query params)
+    const isProfileUrl = /^https?:\/\/(www\.)?tiktok\.com\/@[\w.]+\/?(\?.*)?$/i.test(trimmed);
     // Also accept just @username
     const isUsername = /^@?[\w.]{1,30}$/i.test(trimmed);
 

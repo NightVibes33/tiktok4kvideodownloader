@@ -9,6 +9,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy.tsx";
 import Terms from "./pages/Terms.tsx";
 import About from "./pages/About.tsx";
 import HowToDownload from "./pages/HowToDownload.tsx";
+import ProfileAnalyzer from "./pages/ProfileAnalyzer.tsx";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/terms" element={<Terms />} />
           <Route path="/about" element={<About />} />
           <Route path="/how-to-download" element={<HowToDownload />} />
+          <Route path="/profile-analyzer" element={<ProfileAnalyzer />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

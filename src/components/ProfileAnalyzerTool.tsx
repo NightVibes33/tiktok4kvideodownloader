@@ -91,32 +91,61 @@ function StatCard({ icon: Icon, label, value, accent = false }: {
 }
 
 function EngagementCard({ data, isEstimated }: { data: ProfileData["engagement"]; isEstimated: boolean }) {
+  const ratingLabel = data.engagementRate > 10
+    ? { emoji: "🔥", text: "Viral", color: "text-accent" }
+    : data.engagementRate > 5
+    ? { emoji: "🔥", text: "Excellent", color: "text-accent" }
+    : data.engagementRate > 2
+    ? { emoji: "✅", text: "Good", color: "text-green-400" }
+    : data.engagementRate > 1
+    ? { emoji: "📊", text: "Average", color: "text-yellow-400" }
+    : { emoji: "📉", text: "Below Average", color: "text-muted-foreground" };
+
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold text-heading flex items-center gap-2">
-        <BarChart3 className="w-4 h-4 text-primary" />
-        Engagement Metrics
-        {isEstimated && (
-          <span className="text-[9px] text-dim font-mono bg-secondary px-2 py-0.5 rounded-full">ESTIMATED</span>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-heading flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-primary" />
+          Engagement Metrics
+        </h3>
+        {isEstimated ? (
+          <span className="text-[9px] text-muted-foreground font-mono bg-secondary/80 px-2.5 py-1 rounded-full ring-1 ring-border/50 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400/70" />
+            ESTIMATED
+          </span>
+        ) : (
+          <span className="text-[9px] text-accent font-mono bg-accent/10 px-2.5 py-1 rounded-full ring-1 ring-accent/20 flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            REAL DATA
+          </span>
         )}
-      </h3>
+      </div>
+
       <div className="grid grid-cols-2 gap-2">
         <StatCard icon={Heart} label="Avg Likes" value={fmt(data.avgLikes)} />
         <StatCard icon={MessageCircle} label="Avg Comments" value={fmt(data.avgComments)} accent />
         <StatCard icon={Share2} label="Avg Shares" value={fmt(data.avgShares)} />
         <StatCard icon={Eye} label="Avg Views" value={fmt(data.avgPlays)} accent />
       </div>
+
       <div className="p-4 rounded-xl bg-primary/10 ring-1 ring-primary/20 text-center">
-        <p className="text-[10px] text-dim uppercase tracking-widest font-mono mb-1">Engagement Rate</p>
+        <p className="text-[10px] text-dim uppercase tracking-widest font-mono mb-1">
+          Engagement Rate {isEstimated ? "" : "(interactions / views)"}
+        </p>
         <p className="text-3xl font-bold text-heading">{data.engagementRate}%</p>
-        <p className="text-xs text-dim mt-1">
-          {data.engagementRate > 5 ? "🔥 Excellent" : data.engagementRate > 2 ? "✅ Good" : data.engagementRate > 1 ? "📊 Average" : "📉 Below average"}
+        <p className={`text-xs mt-1 font-medium ${ratingLabel.color}`}>
+          {ratingLabel.emoji} {ratingLabel.text}
         </p>
       </div>
+
       {isEstimated && (
-        <p className="text-[10px] text-dim text-center font-mono">
-          Estimates based on total likes ÷ video count. Comments & shares use industry averages.
-        </p>
+        <div className="p-3 rounded-xl bg-secondary/30 ring-1 ring-border/30">
+          <p className="text-[10px] text-dim text-center font-mono leading-relaxed">
+            ⚠️ Stats estimated from profile totals (total likes ÷ video count).
+            Comments, shares & views use industry-average ratios.
+            Scrape individual video links for exact data.
+          </p>
+        </div>
       )}
     </div>
   );

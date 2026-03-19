@@ -243,23 +243,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Strategy: Extract video IDs from profile HTML, then use oembed API for each
+    // Strategy: Extract video IDs from profile HTML, then scrape each video page for real stats
     if (videoItems.length === 0) {
       try {
-        // Look for video IDs in the profile HTML (href="/video/..." or data attributes)
-        const videoIdPattern = /["'\/]video[\/](\d{15,25})/g;
         const ids = new Set<string>();
         let m;
+
+        // Extract video IDs from profile HTML
+        const videoIdPattern = /["'\/]video[\/](\d{15,25})/g;
         while ((m = videoIdPattern.exec(html)) !== null) {
           ids.add(m[1]);
         }
 
-        // Also look for video IDs in the rehydration data (sometimes nested in SEO/meta)
+        // Also check href tags and meta tags
         if (ids.size === 0) {
-          const allIdPattern = /(\d{19,20})/g;
-          const potentialIds: string[] = [];
-          // Look in meta tags for video references  
-          const ogUrlMatch = html.match(/property="og:url"[^>]*content="([^"]+)"/g);
+          const linkPattern = /href="[^"]*\/video\/(\d{15,25})"/g;
+          while ((m = linkPattern.exec(html)) !== null) {
+            ids.add(m[1]);
+          }
+          const ogUrlMatch = html.match(/property="og:url"[^>]*content="[^"]*video\/(\d{15,25})"/g);
           if (ogUrlMatch) {
             for (const tag of ogUrlMatch) {
               const vidMatch = tag.match(/video\/(\d{15,25})/);
@@ -270,45 +272,81 @@ Deno.serve(async (req) => {
 
         console.log(`Found ${ids.size} video IDs in profile HTML`);
 
-        // If we found IDs, get details via oembed (public API, no auth needed)
+        // Scrape each video page directly to get real stats from embedded JSON
         if (ids.size > 0) {
           const username = user.uniqueId || user.unique_id || '';
-          const idsArr = Array.from(ids).slice(0, 15);
+          const idsArr = Array.from(ids).slice(0, 12); // limit to 12 to avoid timeouts
 
-          const oembedResults = await Promise.allSettled(
+          const scrapeResults = await Promise.allSettled(
             idsArr.map(async (vid) => {
-              const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(`https://www.tiktok.com/@${username}/video/${vid}`)}`;
-              const r = await fetch(oembedUrl, { headers: { 'User-Agent': headers['User-Agent'] } });
-              if (!r.ok) return null;
-              const d = await r.json();
-              return { id: vid, title: d.title || '', thumbnail: d.thumbnail_url || '', author: d.author_name || '' };
+              try {
+                const videoUrl = `https://www.tiktok.com/@${username}/video/${vid}`;
+                const r = await fetch(videoUrl, { headers, redirect: 'follow' });
+                if (!r.ok) return null;
+                const videoHtml = await r.text();
+
+                // Extract embedded JSON from video page (same patterns as profile)
+                let videoData: string | null = null;
+                const videoPatterns = [
+                  /<script\s+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/,
+                  /<script\s+id="SIGI_STATE"[^>]*>([\s\S]*?)<\/script>/,
+                  /<script\s+id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/,
+                ];
+                for (const p of videoPatterns) {
+                  const match = videoHtml.match(p);
+                  if (match) { videoData = match[1]; break; }
+                }
+                if (!videoData) return null;
+
+                const vParsed = JSON.parse(videoData);
+
+                // Try multiple known data paths for video info
+                let itemInfo: any = null;
+
+                // Path 1: __UNIVERSAL_DATA_FOR_REHYDRATION__ → webapp.video-detail
+                const vDefault = vParsed?.__DEFAULT_SCOPE__;
+                const videoDetail = vDefault?.['webapp.video-detail'];
+                if (videoDetail?.itemInfo?.itemStruct) {
+                  itemInfo = videoDetail.itemInfo.itemStruct;
+                }
+
+                // Path 2: SIGI_STATE → ItemModule
+                if (!itemInfo && vParsed?.ItemModule) {
+                  const items = Object.values(vParsed.ItemModule);
+                  if (items.length > 0) itemInfo = items[0];
+                }
+
+                // Path 3: __NEXT_DATA__
+                if (!itemInfo && vParsed?.props?.pageProps?.itemInfo?.itemStruct) {
+                  itemInfo = vParsed.props.pageProps.itemInfo.itemStruct;
+                }
+
+                if (!itemInfo) return null;
+
+                return {
+                  id: itemInfo.id || vid,
+                  description: itemInfo.desc || '',
+                  createTime: itemInfo.createTime || 0,
+                  cover: itemInfo.video?.cover || itemInfo.video?.originCover || itemInfo.video?.dynamicCover || '',
+                  likes: itemInfo.stats?.diggCount || 0,
+                  comments: itemInfo.stats?.commentCount || 0,
+                  shares: itemInfo.stats?.shareCount || 0,
+                  plays: itemInfo.stats?.playCount || 0,
+                  duration: itemInfo.video?.duration || 0,
+                } as VideoItem;
+              } catch (e) {
+                console.error(`Failed to scrape video ${vid}:`, e);
+                return null;
+              }
             })
           );
 
-          for (const result of oembedResults) {
+          for (const result of scrapeResults) {
             if (result.status === 'fulfilled' && result.value) {
-              const d = result.value;
-              videoItems.push({
-                id: d.id,
-                description: d.title,
-                createTime: 0,
-                cover: d.thumbnail,
-                likes: 0, comments: 0, shares: 0, plays: 0, duration: 0,
-              });
+              videoItems.push(result.value);
             }
           }
-          console.log(`Got ${videoItems.length} videos from oembed`);
-        }
-
-        // If still no videos, try scraping the first few video pages for real stats
-        if (videoItems.length === 0 && ids.size === 0) {
-          // Try fetching the profile page and extracting video links from rendered link tags
-          const linkPattern = /href="(https:\/\/www\.tiktok\.com\/@[^"]*\/video\/\d+)"/g;
-          while ((m = linkPattern.exec(html)) !== null) {
-            const vidMatch = m[1].match(/video\/(\d{15,25})/);
-            if (vidMatch) ids.add(vidMatch[1]);
-          }
-          console.log(`Found ${ids.size} video IDs from href tags`);
+          console.log(`Scraped ${videoItems.length}/${idsArr.length} videos with real stats`);
         }
       } catch (e) {
         console.error('Video extraction failed:', e);

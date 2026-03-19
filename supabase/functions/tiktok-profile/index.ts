@@ -143,18 +143,50 @@ Deno.serve(async (req) => {
     }
 
     const trimmed = url.trim();
-    // Accept profile URLs like tiktok.com/@username (with optional query params)
+
+    // Accept profile URLs like tiktok.com/@username (with optional query params or path segments)
     const isProfileUrl = /^https?:\/\/(www\.)?tiktok\.com\/@[\w.]+\/?(\?.*)?$/i.test(trimmed);
     // Also accept just @username
     const isUsername = /^@?[\w.]{1,30}$/i.test(trimmed);
+    // Accept short links (vm.tiktok.com, vt.tiktok.com, tiktok.com/t/)
+    const isShortLink = /^https?:\/\/(vm|vt)\.tiktok\.com\//i.test(trimmed) ||
+      /^https?:\/\/(www\.)?tiktok\.com\/t\//i.test(trimmed);
 
     let profileUrl = trimmed;
     if (isUsername) {
       const username = trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
       profileUrl = `https://www.tiktok.com/@${username}`;
+    } else if (isShortLink) {
+      // Resolve short link by following redirects
+      try {
+        const resolved = await fetch(trimmed, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          },
+          redirect: 'follow',
+        });
+        const finalUrl = resolved.url;
+        console.log(`Short link resolved: ${trimmed} -> ${finalUrl}`);
+        // Extract username from resolved URL
+        const usernameMatch = finalUrl.match(/tiktok\.com\/@([\w.]+)/);
+        if (usernameMatch) {
+          profileUrl = `https://www.tiktok.com/@${usernameMatch[1]}`;
+        } else {
+          return new Response(
+            JSON.stringify({ error: 'This link does not point to a TikTok profile. Try pasting the profile URL (tiktok.com/@username) instead.' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      } catch (e) {
+        console.error('Failed to resolve short link:', e);
+        return new Response(
+          JSON.stringify({ error: 'Could not resolve short link. Please paste the full profile URL.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+      }
     } else if (!isProfileUrl) {
       return new Response(
-        JSON.stringify({ error: 'Please provide a TikTok profile URL (e.g. https://www.tiktok.com/@username) or just @username' }),
+        JSON.stringify({ error: 'Please provide a TikTok profile URL (e.g. https://www.tiktok.com/@username), @username, or a TikTok share link' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

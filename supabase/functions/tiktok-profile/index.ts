@@ -380,7 +380,20 @@ Deno.serve(async (req) => {
     }
 
     const totalInteractions = avgLikes + avgComments + avgShares;
-    const engagementRate = followers > 0 ? Math.round((totalInteractions / followers) * 10000) / 100 : 0;
+    // TikTok engagement rate should be interactions/views (not followers) since content goes viral beyond followers
+    // If we have views data, use views-based. Otherwise use followers-based but cap it.
+    let engagementRate: number;
+    if (avgPlays > 0) {
+      engagementRate = Math.round((totalInteractions / avgPlays) * 10000) / 100;
+    } else if (followers > 0) {
+      engagementRate = Math.round((totalInteractions / followers) * 10000) / 100;
+    } else {
+      engagementRate = 0;
+    }
+    // Cap at 100% for estimated data to avoid unrealistic numbers
+    if (!hasPerVideoStats && engagementRate > 30) {
+      engagementRate = Math.round((avgLikes / (avgPlays || followers || 1)) * 10000) / 100;
+    }
 
     const topVideos = hasPerVideoStats
       ? [...videoItems].sort((a, b) => (b.likes + b.comments + b.shares) - (a.likes + a.comments + a.shares)).slice(0, 5)

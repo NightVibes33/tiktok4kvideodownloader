@@ -174,6 +174,19 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Increment download counter server-side when it's an actual download
+    if (shouldDownload) {
+      try {
+        const supabaseAdmin = createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+        );
+        await supabaseAdmin.rpc('increment_downloads');
+      } catch (e) {
+        console.error('Failed to increment download counter:', e);
+      }
+    }
+
     return new Response(req.method === 'HEAD' ? null : upstreamResponse.body, {
       status: upstreamResponse.status,
       headers,

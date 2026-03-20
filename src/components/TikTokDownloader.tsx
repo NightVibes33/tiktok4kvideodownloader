@@ -518,7 +518,7 @@ export default function TikTokDownloader() {
                     <DownloadActions
                       downloadUrl={downloadUrl}
                       qualityCount={qualities.length}
-                      onDownload={incrementDownloads}
+                      onDownload={onDownloadTriggered}
                     />
                   </div>
                 </div>

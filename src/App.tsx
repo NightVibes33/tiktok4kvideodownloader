@@ -10,6 +10,7 @@ import Terms from "./pages/Terms.tsx";
 import About from "./pages/About.tsx";
 import HowToDownload from "./pages/HowToDownload.tsx";
 import ProfileAnalyzer from "./pages/ProfileAnalyzer.tsx";
+import Install from "./pages/Install.tsx";
 
 const queryClient = new QueryClient();
 

@@ -1,6 +1,4 @@
 import { Link, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
-import { Smartphone, X } from "lucide-react";
 
 const navLinks = [
   { to: "/", label: "Home" },

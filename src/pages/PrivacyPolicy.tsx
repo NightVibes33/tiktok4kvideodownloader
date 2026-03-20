@@ -1,8 +1,14 @@
 import SiteLayout from "@/components/SiteLayout";
+import SEOHead from "@/components/SEOHead";
 
 export default function PrivacyPolicy() {
   return (
     <SiteLayout>
+      <SEOHead
+        title="Privacy Policy — TikTok 4K Video Downloader"
+        description="Read the privacy policy for TikTok 4K Video Downloader. We don't collect personal data or store your downloads."
+        path="/privacy-policy"
+      />
       <article className="prose prose-invert max-w-none">
         <h1 className="text-2xl sm:text-3xl font-bold text-heading tracking-tight">Privacy Policy</h1>
         <p className="text-dim text-xs font-mono uppercase tracking-wider">Last updated: March 18, 2026</p>
@@ -51,7 +57,7 @@ export default function PrivacyPolicy() {
 
         <h2 className="text-lg font-semibold text-heading mt-8">8. Contact</h2>
         <p className="text-body leading-relaxed">
-          If you have questions about this Privacy Policy, please reach out via the contact details on our About page.
+          If you have questions about this Privacy Policy, please reach out via the contact details on our <a href="/about" className="text-primary hover:underline">About page</a>.
         </p>
       </article>
     </SiteLayout>

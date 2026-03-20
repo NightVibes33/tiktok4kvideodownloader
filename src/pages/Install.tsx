@@ -1,4 +1,5 @@
 import SiteLayout from "@/components/SiteLayout";
+import SEOHead from "@/components/SEOHead";
 import { Smartphone, Download, ChevronRight } from "lucide-react";
 
 const steps = [
@@ -27,6 +28,11 @@ const steps = [
 export default function Install() {
   return (
     <SiteLayout>
+      <SEOHead
+        title="Install TikTok 4K Downloader on iPhone — Home Screen App"
+        description="Add TikTok 4K Video Downloader to your iPhone Home Screen for quick, app-like access. No App Store needed — works on iOS 14+."
+        path="/install"
+      />
       <div className="w-full max-w-xl mx-auto space-y-8 selection:bg-primary/30 selection:text-primary-foreground">
         <div className="space-y-3 text-center">
           <div className="flex justify-center">
@@ -42,7 +48,6 @@ export default function Install() {
           </p>
         </div>
 
-        {/* Download button */}
         <a
           href={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/serve-mobileconfig?apikey=${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`}
           className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary hover:bg-primary/85 text-primary-foreground rounded-xl font-semibold transition-all ease-expo duration-200 glow-primary hover:shadow-[0_0_30px_hsl(var(--glow-primary)/0.4)]"
@@ -51,15 +56,11 @@ export default function Install() {
           Install Profile
         </a>
 
-        {/* Steps */}
         <div className="space-y-3">
           <h2 className="text-xs text-dim uppercase tracking-widest font-mono text-center">How it works</h2>
           <div className="space-y-2">
             {steps.map((step) => (
-              <div
-                key={step.number}
-                className="surface-elevated rounded-xl p-4 flex items-start gap-3.5"
-              >
+              <div key={step.number} className="surface-elevated rounded-xl p-4 flex items-start gap-3.5">
                 <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
                   {step.number}
                 </div>
@@ -75,6 +76,10 @@ export default function Install() {
 
         <p className="text-[10px] text-dim text-center font-mono uppercase tracking-widest">
           Works on iPhone · iPad · iOS 14+
+        </p>
+
+        <p className="text-xs text-dim text-center">
+          Prefer using the browser? <a href="/" className="text-primary hover:underline">Download videos online</a> instead.
         </p>
       </div>
     </SiteLayout>

@@ -19,6 +19,14 @@ const footerLinks = [
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
+  return (
+    <div className="min-h-svh bg-background text-foreground flex flex-col">
+      {/* Background effects */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-accent/5 rounded-full blur-[100px]" />
+      </div>
+
       {/* Header */}
       <header className="relative z-20 border-b border-border/50">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">

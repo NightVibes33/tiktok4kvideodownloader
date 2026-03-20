@@ -310,9 +310,9 @@ export default function TikTokDownloader() {
       });
   }, []);
 
-  const incrementDownloads = useCallback(async () => {
-    const { data } = await supabase.rpc("increment_downloads");
-    if (typeof data === "number") setTotalDownloads(data);
+  const onDownloadTriggered = useCallback(async () => {
+    // Counter is now incremented server-side in the tiktok-download edge function
+    setTotalDownloads(prev => prev + 1);
     if (videoData) {
       addToHistory({
         id: videoData.id,
@@ -518,7 +518,7 @@ export default function TikTokDownloader() {
                     <DownloadActions
                       downloadUrl={downloadUrl}
                       qualityCount={qualities.length}
-                      onDownload={incrementDownloads}
+                      onDownload={onDownloadTriggered}
                     />
                   </div>
                 </div>

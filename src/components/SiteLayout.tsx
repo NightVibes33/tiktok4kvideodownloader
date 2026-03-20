@@ -9,9 +9,7 @@ const navLinks = [
   { to: "/about", label: "About" },
   { to: "/install", label: "Install" },
 ];
-  { to: "/how-to-download", label: "How To" },
-  { to: "/about", label: "About" },
-];
+
 
 const footerLinks = [
   { to: "/privacy-policy", label: "Privacy Policy" },

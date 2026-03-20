@@ -7,6 +7,10 @@ const navLinks = [
   { to: "/profile-analyzer", label: "Analyzer" },
   { to: "/how-to-download", label: "How To" },
   { to: "/about", label: "About" },
+  { to: "/install", label: "Install" },
+];
+  { to: "/how-to-download", label: "How To" },
+  { to: "/about", label: "About" },
 ];
 
 const footerLinks = [

@@ -45,8 +45,8 @@ export default function About() {
         <h2 className="text-lg font-semibold text-heading mt-8">Contact</h2>
         <p className="text-body leading-relaxed">
           Have feedback, questions, or suggestions? We'd love to hear from you. Reach out at{" "}
-          <a href="mailto:contact@tiktok4kvideodownloader.lovable.app" className="text-primary hover:underline">
-            contact@tiktok4kvideodownloader.lovable.app
+          <a href="mailto:tiktok4kvideodownloader@proton.me" className="text-primary hover:underline">
+            tiktok4kvideodownloader@proton.me
           </a>.
         </p>
       </article>

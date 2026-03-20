@@ -1,8 +1,14 @@
 import SiteLayout from "@/components/SiteLayout";
+import SEOHead from "@/components/SEOHead";
 
 export default function Terms() {
   return (
     <SiteLayout>
+      <SEOHead
+        title="Terms of Service — TikTok 4K Video Downloader"
+        description="Read the terms of service for TikTok 4K Video Downloader. Understand your rights and responsibilities when using our free download tool."
+        path="/terms"
+      />
       <article className="prose prose-invert max-w-none">
         <h1 className="text-2xl sm:text-3xl font-bold text-heading tracking-tight">Terms of Service</h1>
         <p className="text-dim text-xs font-mono uppercase tracking-wider">Last updated: March 18, 2026</p>
@@ -51,7 +57,7 @@ export default function Terms() {
 
         <h2 className="text-lg font-semibold text-heading mt-8">9. Contact</h2>
         <p className="text-body leading-relaxed">
-          For questions about these Terms, please reach out via the contact details on our About page.
+          For questions about these Terms, please reach out via the contact details on our <a href="/about" className="text-primary hover:underline">About page</a>.
         </p>
       </article>
     </SiteLayout>

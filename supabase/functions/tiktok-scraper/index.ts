@@ -114,6 +114,60 @@ function extractQualities(video: any): QualityOption[] {
   return qualities;
 }
 
+async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string): Promise<object | null> {
+  try {
+    const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(videoUrl)}&hd=1`;
+    const resp = await fetch(apiUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+    });
+    const data = await resp.json();
+    if (data?.code !== 0 || !data?.data) return null;
+
+    const d = data.data;
+    const qualities: QualityOption[] = [];
+
+    if (d.hdplay) {
+      qualities.push({ label: 'HD (no watermark)', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
+    }
+    if (d.play) {
+      qualities.push({ label: 'Standard (no watermark)', url: d.play, width: 0, height: 0, bitrate: 0, watermark: false });
+    }
+    if (d.wmplay) {
+      qualities.push({ label: 'With watermark', url: d.wmplay, width: 0, height: 0, bitrate: 0, watermark: true });
+    }
+
+    return {
+      id: String(d.id || ''),
+      description: d.title || '',
+      author: {
+        username: d.author?.unique_id || '',
+        nickname: d.author?.nickname || '',
+        avatar: d.author?.avatar || '',
+      },
+      video: {
+        url: qualities[0]?.url || d.play || '',
+        cover: d.cover || d.origin_cover || '',
+        dynamicCover: d.animated_cover || '',
+        duration: d.duration || 0,
+        ratio: '',
+        width: d.width || 0,
+        height: d.height || 0,
+      },
+      qualities,
+      stats: {
+        diggCount: d.digg_count,
+        commentCount: d.comment_count,
+        shareCount: d.share_count,
+        playCount: d.play_count,
+      },
+      cookieToken: encryptedCookies,
+    };
+  } catch (e) {
+    console.error('Fallback API error:', e);
+    return null;
+  }
+}
+
 function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);

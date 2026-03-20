@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, range',
 };
 
-const ALLOWED_HOSTS = /\.(tiktokcdn\.com|tiktokv\.com|tiktok\.com|akamaized\.net|tiktokcdn-us\.com|tiktokcdn-eu\.com|musical\.ly|byteoversea\.com|ibytedtos\.com|byteimg\.com|ipstatp\.com)$/i;
+const ALLOWED_HOSTS = /\.(tiktokcdn\.com|tiktokv\.com|tiktok\.com|akamaized\.net|tiktokcdn-us\.com|tiktokcdn-eu\.com|musical\.ly|byteoversea\.com|ibytedtos\.com|byteimg\.com|ipstatp\.com|tiktokcdn-us\.com)$/i;
 
 // In-memory rate limiting
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();

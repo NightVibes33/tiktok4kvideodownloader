@@ -270,6 +270,16 @@ Deno.serve(async (req) => {
     }
 
     if (!scriptData) {
+      console.log('No embedded script data found, trying fallback API...');
+      const resolvedUrl = response.url || url;
+      const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
+      if (fallbackResult) {
+        console.log('Successfully fetched via fallback API (no script data)');
+        return new Response(
+          JSON.stringify(fallbackResult),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({ error: 'Could not find video data. TikTok might be blocking the request.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

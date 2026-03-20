@@ -283,11 +283,15 @@ Deno.serve(async (req) => {
       const itemInfo = videoDetail.itemInfo?.itemStruct;
       if (itemInfo) {
         const result = buildResult(itemInfo, null, encryptedCookies);
-        console.log(`Extracted ${result.qualities.length} quality options`);
-        return new Response(
-          JSON.stringify(result),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (result.qualities.length > 0) {
+          console.log(`Extracted ${result.qualities.length} quality options`);
+          return new Response(
+            JSON.stringify(result),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Video found but no qualities (age-restricted/classified) — try fallback
+        console.log('Video data empty (possibly content-classified), trying fallback API...');
       }
     }
 
@@ -306,12 +310,25 @@ Deno.serve(async (req) => {
           },
         };
         const result = buildResult(itemWithAuthor, item.video, encryptedCookies);
-        console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
-        return new Response(
-          JSON.stringify(result),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (result.qualities.length > 0) {
+          console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
+          return new Response(
+            JSON.stringify(result),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
+    }
+
+    // Fallback: use external API for age-restricted or classified videos
+    const resolvedUrl = response.url || url;
+    const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
+    if (fallbackResult) {
+      console.log('Successfully fetched via fallback API');
+      return new Response(
+        JSON.stringify(fallbackResult),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     return new Response(

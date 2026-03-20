@@ -1,9 +1,8 @@
-import SiteLayout from "@/components/SiteLayout";
 import SEOHead from "@/components/SEOHead";
 
 export default function About() {
   return (
-    <SiteLayout>
+    <>
       <SEOHead
         title="About TikTok 4K Video Downloader — Free HD Download Tool"
         description="Learn about TikTok 4K Video Downloader — a free tool to save TikTok videos in HD quality without watermark. No account needed, mobile-friendly."
@@ -50,6 +49,6 @@ export default function About() {
           </a>.
         </p>
       </article>
-    </SiteLayout>
+    </>
   );
 }

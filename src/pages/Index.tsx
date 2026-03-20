@@ -1,4 +1,3 @@
-import SiteLayout from "@/components/SiteLayout";
 import TikTokDownloader from "@/components/TikTokDownloader";
 import SEOHead from "@/components/SEOHead";
 
@@ -19,7 +18,7 @@ const webAppJsonLd = {
 };
 
 const Index = () => (
-  <SiteLayout>
+  <>
     <SEOHead
       title="TikTok 4K Video Downloader — Save HD Videos Without Watermark"
       description="Download TikTok videos in 4K HD quality without watermark. Free online tool — paste a link, pick quality, save MP4 instantly. No signup required."
@@ -27,7 +26,7 @@ const Index = () => (
       jsonLd={webAppJsonLd}
     />
     <TikTokDownloader />
-  </SiteLayout>
+  </>
 );
 
 export default Index;

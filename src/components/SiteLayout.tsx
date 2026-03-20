@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, Outlet } from "react-router-dom";
 
 const navLinks = [
   { to: "/", label: "Home" },
@@ -7,7 +7,6 @@ const navLinks = [
   { to: "/about", label: "About" },
   { to: "/install", label: "Install" },
 ];
-
 
 const footerLinks = [
   { to: "/", label: "TikTok Downloader" },
@@ -19,7 +18,7 @@ const footerLinks = [
   { to: "/terms", label: "Terms of Service" },
 ];
 
-export default function SiteLayout({ children }: { children: React.ReactNode }) {
+export default function SiteLayout({ children }: { children?: React.ReactNode }) {
   const location = useLocation();
 
   return (
@@ -55,7 +54,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
 
       {/* Main content */}
       <main className="flex-1 relative z-10 max-w-3xl mx-auto w-full px-4 py-8 sm:py-12">
-        {children}
+        {children ?? <Outlet />}
       </main>
 
       {/* Footer */}

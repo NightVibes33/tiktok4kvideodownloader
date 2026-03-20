@@ -1,4 +1,3 @@
-import SiteLayout from "@/components/SiteLayout";
 import SEOHead from "@/components/SEOHead";
 import { Smartphone, Download, ChevronRight } from "lucide-react";
 
@@ -27,7 +26,7 @@ const steps = [
 
 export default function Install() {
   return (
-    <SiteLayout>
+    <>
       <SEOHead
         title="Install TikTok 4K Downloader on iPhone — Home Screen App"
         description="Add TikTok 4K Video Downloader to your iPhone Home Screen for quick, app-like access. No App Store needed — works on iOS 14+."
@@ -82,6 +81,6 @@ export default function Install() {
           Prefer using the browser? <a href="/" className="text-primary hover:underline">Download videos online</a> instead.
         </p>
       </div>
-    </SiteLayout>
+    </>
   );
 }

@@ -114,6 +114,60 @@ function extractQualities(video: any): QualityOption[] {
   return qualities;
 }
 
+async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string): Promise<object | null> {
+  try {
+    const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(videoUrl)}&hd=1`;
+    const resp = await fetch(apiUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' },
+    });
+    const data = await resp.json();
+    if (data?.code !== 0 || !data?.data) return null;
+
+    const d = data.data;
+    const qualities: QualityOption[] = [];
+
+    if (d.hdplay) {
+      qualities.push({ label: 'HD (no watermark)', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
+    }
+    if (d.play) {
+      qualities.push({ label: 'Standard (no watermark)', url: d.play, width: 0, height: 0, bitrate: 0, watermark: false });
+    }
+    if (d.wmplay) {
+      qualities.push({ label: 'With watermark', url: d.wmplay, width: 0, height: 0, bitrate: 0, watermark: true });
+    }
+
+    return {
+      id: String(d.id || ''),
+      description: d.title || '',
+      author: {
+        username: d.author?.unique_id || '',
+        nickname: d.author?.nickname || '',
+        avatar: d.author?.avatar || '',
+      },
+      video: {
+        url: qualities[0]?.url || d.play || '',
+        cover: d.cover || d.origin_cover || '',
+        dynamicCover: d.animated_cover || '',
+        duration: d.duration || 0,
+        ratio: '',
+        width: d.width || 0,
+        height: d.height || 0,
+      },
+      qualities,
+      stats: {
+        diggCount: d.digg_count,
+        commentCount: d.comment_count,
+        shareCount: d.share_count,
+        playCount: d.play_count,
+      },
+      cookieToken: encryptedCookies,
+    };
+  } catch (e) {
+    console.error('Fallback API error:', e);
+    return null;
+  }
+}
+
 function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
@@ -216,6 +270,16 @@ Deno.serve(async (req) => {
     }
 
     if (!scriptData) {
+      console.log('No embedded script data found, trying fallback API...');
+      const resolvedUrl = response.url || url;
+      const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
+      if (fallbackResult) {
+        console.log('Successfully fetched via fallback API (no script data)');
+        return new Response(
+          JSON.stringify(fallbackResult),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       return new Response(
         JSON.stringify({ error: 'Could not find video data. TikTok might be blocking the request.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -229,11 +293,15 @@ Deno.serve(async (req) => {
       const itemInfo = videoDetail.itemInfo?.itemStruct;
       if (itemInfo) {
         const result = buildResult(itemInfo, null, encryptedCookies);
-        console.log(`Extracted ${result.qualities.length} quality options`);
-        return new Response(
-          JSON.stringify(result),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (result.qualities.length > 0) {
+          console.log(`Extracted ${result.qualities.length} quality options`);
+          return new Response(
+            JSON.stringify(result),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        // Video found but no qualities (age-restricted/classified) — try fallback
+        console.log('Video data empty (possibly content-classified), trying fallback API...');
       }
     }
 
@@ -252,12 +320,25 @@ Deno.serve(async (req) => {
           },
         };
         const result = buildResult(itemWithAuthor, item.video, encryptedCookies);
-        console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
-        return new Response(
-          JSON.stringify(result),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        if (result.qualities.length > 0) {
+          console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
+          return new Response(
+            JSON.stringify(result),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
+    }
+
+    // Fallback: use external API for age-restricted or classified videos
+    const resolvedUrl = response.url || url;
+    const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
+    if (fallbackResult) {
+      console.log('Successfully fetched via fallback API');
+      return new Response(
+        JSON.stringify(fallbackResult),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     return new Response(

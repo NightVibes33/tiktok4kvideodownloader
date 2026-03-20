@@ -11,10 +11,7 @@ import About from "./pages/About.tsx";
 import HowToDownload from "./pages/HowToDownload.tsx";
 import Install from "./pages/Install.tsx";
 
-// Only lazy-load the heavy route (recharts dependency)
-const ProfileAnalyzer = lazy(() => import("./pages/ProfileAnalyzer.tsx"));
-
-const queryClient = new QueryClient();
+import ProfileAnalyzer from "./pages/ProfileAnalyzer.tsx";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

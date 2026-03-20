@@ -25,7 +25,7 @@ const App = () => (
           <Route path="/terms" element={<Terms />} />
           <Route path="/about" element={<About />} />
           <Route path="/how-to-download" element={<HowToDownload />} />
-          <Route path="/profile-analyzer" element={<Suspense fallback={<div className="min-h-svh bg-background" />}><ProfileAnalyzer /></Suspense>} />
+          <Route path="/profile-analyzer" element={<ProfileAnalyzer />} />
           <Route path="/install" element={<Install />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

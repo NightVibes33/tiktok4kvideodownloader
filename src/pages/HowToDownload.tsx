@@ -1,4 +1,3 @@
-import SiteLayout from "@/components/SiteLayout";
 import SEOHead from "@/components/SEOHead";
 
 const howToJsonLd = {
@@ -17,7 +16,7 @@ const howToJsonLd = {
 
 export default function HowToDownload() {
   return (
-    <SiteLayout>
+    <>
       <SEOHead
         title="How to Download TikTok Videos Without Watermark — Step-by-Step"
         description="Learn how to download TikTok videos without watermark in 4K HD quality. Free step-by-step guide — works on iPhone, Android, and desktop."
@@ -90,6 +89,6 @@ export default function HowToDownload() {
           Downloading videos for personal use is generally acceptable, but you should always respect the original creator's intellectual property rights and comply with local laws.
         </p>
       </article>
-    </SiteLayout>
+    </>
   );
 }

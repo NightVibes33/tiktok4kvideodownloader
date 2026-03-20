@@ -44,11 +44,11 @@ export default function Install() {
 
         {/* Download button */}
         <a
-          href="/TikTok_4k_Downloader_Web_Clip_Profile.mobileconfig"
+          href={`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/serve-mobileconfig?apikey=${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`}
           className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary hover:bg-primary/85 text-primary-foreground rounded-xl font-semibold transition-all ease-expo duration-200 glow-primary hover:shadow-[0_0_30px_hsl(var(--glow-primary)/0.4)]"
         >
           <Download className="w-4 h-4" />
-          Download & Install Profile
+          Install Profile
         </a>
 
         {/* Steps */}

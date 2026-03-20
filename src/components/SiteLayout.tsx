@@ -1,6 +1,4 @@
 import { Link, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
-import { Smartphone, X } from "lucide-react";
 
 const navLinks = [
   { to: "/", label: "Home" },
@@ -18,54 +16,6 @@ const footerLinks = [
   { to: "/how-to-download", label: "How to Download" },
 ];
 
-function isIOSDevice(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
-
-function IOSInstallBanner() {
-  const [dismissed, setDismissed] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-
-  useEffect(() => {
-    setIsIOS(isIOSDevice());
-    const wasDismissed = sessionStorage.getItem("ios-install-dismissed");
-    if (wasDismissed) setDismissed(true);
-  }, []);
-
-  if (!isIOS || dismissed) return null;
-
-  const handleDismiss = () => {
-    setDismissed(true);
-    sessionStorage.setItem("ios-install-dismissed", "1");
-  };
-
-  return (
-    <div className="relative z-30 bg-primary/10 border-b border-primary/20">
-      <div className="max-w-3xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
-        <a
-          href="/TikTok_4k_Downloader_Web_Clip_Profile.mobileconfig"
-          className="flex items-center gap-2.5 text-xs font-medium text-heading hover:text-primary transition-colors duration-200"
-        >
-          <Smartphone className="w-4 h-4 text-primary shrink-0" />
-          <span>
-            <span className="font-semibold">Add to Home Screen</span>
-            <span className="text-dim ml-1.5 hidden sm:inline">— Install as an app on your iPhone</span>
-          </span>
-        </a>
-        <button
-          onClick={handleDismiss}
-          className="p-1 rounded-md text-dim hover:text-heading hover:bg-secondary/60 transition-colors duration-200"
-          aria-label="Dismiss"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
@@ -76,9 +26,6 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-accent/5 rounded-full blur-[100px]" />
       </div>
-
-      {/* iOS Install Banner */}
-      <IOSInstallBanner />
 
       {/* Header */}
       <header className="relative z-20 border-b border-border/50">

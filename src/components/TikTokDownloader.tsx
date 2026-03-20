@@ -5,7 +5,7 @@ import BuyMeCoffee from "./BuyMeCoffee";
 import DownloadHistory from "./DownloadHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { useDownloadHistory } from "@/hooks/use-download-history";
-import tiktokLogo from "@/assets/tiktok-logo.jpeg";
+import tiktokLogo from "@/assets/tiktok-logo-optimized.webp";
 
 /* ── Types ── */
 

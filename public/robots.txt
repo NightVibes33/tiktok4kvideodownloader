@@ -12,3 +12,5 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+Sitemap: https://tiktok4kvideodownloader.lovable.app/sitemap.xml

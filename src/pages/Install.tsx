@@ -78,7 +78,7 @@ export default function Install() {
         </p>
 
         <p className="text-xs text-dim text-center">
-          Prefer using the browser? <a href="/" className="text-primary hover:underline">Download videos online</a> instead.
+          <a href="/" className="text-primary hover:underline">Go back to the downloader</a>.
         </p>
       </div>
     </>

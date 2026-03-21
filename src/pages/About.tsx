@@ -31,7 +31,7 @@ export default function About() {
           <li><strong>No account required</strong> — Start downloading immediately, no sign-up needed.</li>
           <li><strong>Multiple quality options</strong> — From standard definition to full 4K, when available.</li>
           <li><strong>No watermark</strong> — We fetch the clean, original source file.</li>
-          <li><strong>Mobile-friendly</strong> — Works perfectly on iPhone, Android, and desktop browsers. <a href="/install" className="text-primary hover:underline">Install on iPhone</a> for quick access.</li>
+          <li><strong>Mobile-friendly</strong> — Works perfectly on iPhone, Android, and desktop browsers.</li>
           <li><strong>100% free</strong> — No hidden fees, no download limits.</li>
           <li><strong>Profile analytics</strong> — Use our <a href="/profile-analyzer" className="text-primary hover:underline">TikTok Profile Analyzer</a> to check any creator's stats.</li>
         </ul>

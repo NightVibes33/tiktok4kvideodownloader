@@ -5,14 +5,12 @@ const navLinks = [
   { to: "/profile-analyzer", label: "Analyzer" },
   { to: "/how-to-download", label: "How To" },
   { to: "/about", label: "About" },
-  { to: "/install", label: "Install" },
 ];
 
 const footerLinks = [
   { to: "/", label: "TikTok Downloader" },
   { to: "/how-to-download", label: "How to Download" },
   { to: "/profile-analyzer", label: "Profile Analyzer" },
-  { to: "/install", label: "Install on iPhone" },
   { to: "/about", label: "About" },
   { to: "/privacy-policy", label: "Privacy Policy" },
   { to: "/terms", label: "Terms of Service" },

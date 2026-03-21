@@ -319,7 +319,7 @@ export default function TikTokDownloader() {
 
   const onDownloadTriggered = useCallback(async () => {
     // Counter is now incremented server-side in the tiktok-download edge function
-    setTotalDownloads(prev => prev + 1);
+    setTotalDownloads(prev => { const next = (prev ?? 0) + 1; _cachedDownloads = next; return next; });
     if (videoData) {
       addToHistory({
         id: videoData.id,

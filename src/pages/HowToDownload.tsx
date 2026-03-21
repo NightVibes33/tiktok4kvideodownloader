@@ -56,7 +56,7 @@ export default function HowToDownload() {
 
         <h2 className="text-lg font-semibold text-heading mt-8">Step 5: Download</h2>
         <p className="text-body leading-relaxed">
-          Click <strong>"Download Video"</strong> to save the MP4 file directly to your device. On iPhone, the file will be prepared first so you can save it to your camera roll or share it via AirDrop. Want app-like access? <a href="/install" className="text-primary hover:underline">Install on iPhone</a>.
+          Click <strong>"Download Video"</strong> to save the MP4 file directly to your device. On iPhone, the file will be prepared first so you can save it to your camera roll or share it via AirDrop.
         </p>
 
         <h2 className="text-lg font-semibold text-heading mt-8">Tips & Tricks</h2>

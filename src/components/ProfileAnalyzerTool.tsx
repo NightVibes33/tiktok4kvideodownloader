@@ -616,7 +616,7 @@ export default function ProfileAnalyzerTool() {
 
       {/* Info cards when no results */}
       {!profile && !videoStats && !loading && (
-        <div className="grid grid-cols-3 gap-3 animate-in fade-in duration-700 delay-200">
+        <div className="grid grid-cols-3 gap-3">
           {tab === "profile" ? (
             <>
               {[

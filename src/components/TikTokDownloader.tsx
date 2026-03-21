@@ -529,7 +529,7 @@ export default function TikTokDownloader() {
 
         {/* Features */}
         {!videoData && (
-          <div className="grid grid-cols-3 gap-3 animate-in fade-in duration-700 delay-200">
+          <div className="grid grid-cols-3 gap-3">
             {[
               { icon: "🎬", title: "HD Quality", desc: "Up to 4K" },
               { icon: "💨", title: "No Watermark", desc: "Clean videos" },

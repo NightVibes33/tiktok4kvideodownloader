@@ -290,29 +290,36 @@ function DownloadActions({
 
 /* ── Main Component ── */
 
+// Module-level cache so the counter survives unmount/remount
+let _cachedDownloads: number | null = null;
+
 export default function TikTokDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [totalDownloads, setTotalDownloads] = useState<number | null>(null);
+  const [totalDownloads, setTotalDownloads] = useState<number | null>(_cachedDownloads);
   const { history, addToHistory, removeFromHistory, clearHistory } = useDownloadHistory();
 
   useEffect(() => {
+    if (_cachedDownloads !== null) return;
     supabase
       .from("download_counter")
       .select("total_downloads")
       .eq("id", 1)
       .single()
       .then(({ data }) => {
-        if (data) setTotalDownloads(data.total_downloads);
+        if (data) {
+          _cachedDownloads = data.total_downloads;
+          setTotalDownloads(data.total_downloads);
+        }
       });
   }, []);
 
   const onDownloadTriggered = useCallback(async () => {
     // Counter is now incremented server-side in the tiktok-download edge function
-    setTotalDownloads(prev => prev + 1);
+    setTotalDownloads(prev => { const next = (prev ?? 0) + 1; _cachedDownloads = next; return next; });
     if (videoData) {
       addToHistory({
         id: videoData.id,

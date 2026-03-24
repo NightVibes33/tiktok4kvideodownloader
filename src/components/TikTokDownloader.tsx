@@ -540,6 +540,7 @@ export default function TikTokDownloader() {
 
                     <DownloadActions
                       downloadUrl={downloadUrl}
+                      audioDownloadUrl={audioDownloadUrl}
                       qualityCount={qualities.length}
                       onDownload={onDownloadTriggered}
                     />

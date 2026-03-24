@@ -420,23 +420,6 @@ export default function TikTokDownloader() {
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-8 selection:bg-primary/30 selection:text-primary-foreground">
-        {/* Slideshow Banner */}
-        <Link
-          to="/slideshow-downloader"
-          className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-accent/10 ring-1 ring-accent/20 hover:ring-accent/40 hover:bg-accent/15 transition-all duration-200 group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center shrink-0">
-              <Images className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-heading">TikTok Slideshow Downloader</p>
-              <p className="text-[11px] text-dim">Save photos from TikTok slideshows</p>
-            </div>
-          </div>
-          <ChevronDown className="w-4 h-4 text-dim -rotate-90 group-hover:translate-x-0.5 transition-transform" />
-        </Link>
-
         {/* Header */}
         <div className="space-y-4 text-center">
           <div className="flex justify-center">

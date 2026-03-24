@@ -55,12 +55,12 @@ function formatCount(num?: number): string {
   return num.toString();
 }
 
-function buildVideoProxyUrl(videoData: VideoData, quality: QualityOption, download = false): string {
+function buildProxyUrl(videoData: VideoData, quality: QualityOption, download = false, audioOnly = false): string {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const params = new URLSearchParams({
     videoUrl: quality.url,
-    filename: `tiktok-${videoData.id}.mp4`,
+    filename: audioOnly ? `tiktok-${videoData.id}.mp3` : `tiktok-${videoData.id}.mp4`,
     apikey: anonKey,
   });
   if (download) params.set("download", "1");

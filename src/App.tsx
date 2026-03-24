@@ -11,6 +11,7 @@ import Terms from "./pages/Terms.tsx";
 import About from "./pages/About.tsx";
 import HowToDownload from "./pages/HowToDownload.tsx";
 import ProfileAnalyzer from "./pages/ProfileAnalyzer.tsx";
+import SlideshowDownloader from "./pages/SlideshowDownloader.tsx";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/about" element={<About />} />
             <Route path="/how-to-download" element={<HowToDownload />} />
             <Route path="/profile-analyzer" element={<ProfileAnalyzer />} />
+            <Route path="/slideshow-downloader" element={<SlideshowDownloader />} />
             
             <Route path="*" element={<NotFound />} />
           </Route>

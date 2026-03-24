@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp } from "lucide-react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp, Music, Images } from "lucide-react";
+import { Link } from "react-router-dom";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
 import DownloadHistory from "./DownloadHistory";
@@ -54,12 +55,12 @@ function formatCount(num?: number): string {
   return num.toString();
 }
 
-function buildVideoProxyUrl(videoData: VideoData, quality: QualityOption, download = false): string {
+function buildProxyUrl(videoData: VideoData, quality: QualityOption, download = false, audioOnly = false): string {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const params = new URLSearchParams({
     videoUrl: quality.url,
-    filename: `tiktok-${videoData.id}.mp4`,
+    filename: audioOnly ? `tiktok-${videoData.id}.mp3` : `tiktok-${videoData.id}.mp4`,
     apikey: anonKey,
   });
   if (download) params.set("download", "1");
@@ -200,10 +201,12 @@ function QualitySelector({
 
 function DownloadActions({
   downloadUrl,
+  audioDownloadUrl,
   qualityCount,
   onDownload,
 }: {
   downloadUrl: string;
+  audioDownloadUrl?: string;
   qualityCount: number;
   onDownload?: () => void;
 }) {
@@ -269,6 +272,18 @@ function DownloadActions({
         {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
         {downloading ? "Preparing Download" : "Download Video"}
       </button>
+
+      {audioDownloadUrl && (
+        <a
+          href={audioDownloadUrl}
+          target="_top"
+          rel="noopener noreferrer"
+          className="w-full flex items-center justify-center gap-2.5 py-3 bg-accent/15 hover:bg-accent/25 text-accent ring-1 ring-accent/30 hover:ring-accent/50 rounded-xl font-semibold text-sm transition-all ease-expo duration-200"
+        >
+          <Music className="w-4 h-4" />
+          Download Audio
+        </a>
+      )}
 
       <button
         onClick={handleCopy}
@@ -399,11 +414,29 @@ export default function TikTokDownloader() {
 
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
-  const previewUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, false) : "";
-  const downloadUrl = videoData && activeQuality ? buildVideoProxyUrl(videoData, activeQuality, true) : "";
+  const previewUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, false) : "";
+  const downloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true) : "";
+  const audioDownloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true, true) : "";
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-8 selection:bg-primary/30 selection:text-primary-foreground">
+        {/* Slideshow Banner */}
+        <Link
+          to="/slideshow-downloader"
+          className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-accent/10 ring-1 ring-accent/20 hover:ring-accent/40 hover:bg-accent/15 transition-all duration-200 group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center shrink-0">
+              <Images className="w-5 h-5 text-accent" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-heading">TikTok Slideshow Downloader</p>
+              <p className="text-[11px] text-dim">Save photos from TikTok slideshows</p>
+            </div>
+          </div>
+          <ChevronDown className="w-4 h-4 text-dim -rotate-90 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+
         {/* Header */}
         <div className="space-y-4 text-center">
           <div className="flex justify-center">
@@ -524,6 +557,7 @@ export default function TikTokDownloader() {
 
                     <DownloadActions
                       downloadUrl={downloadUrl}
+                      audioDownloadUrl={audioDownloadUrl}
                       qualityCount={qualities.length}
                       onDownload={onDownloadTriggered}
                     />

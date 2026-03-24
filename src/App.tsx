@@ -11,6 +11,7 @@ import Terms from "./pages/Terms.tsx";
 import About from "./pages/About.tsx";
 import HowToDownload from "./pages/HowToDownload.tsx";
 import ProfileAnalyzer from "./pages/ProfileAnalyzer.tsx";
+import SlideshowDownloader from "./pages/SlideshowDownloader.tsx";
 
 const queryClient = new QueryClient();
 

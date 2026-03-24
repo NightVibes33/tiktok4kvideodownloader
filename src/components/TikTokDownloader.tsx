@@ -201,10 +201,12 @@ function QualitySelector({
 
 function DownloadActions({
   downloadUrl,
+  audioDownloadUrl,
   qualityCount,
   onDownload,
 }: {
   downloadUrl: string;
+  audioDownloadUrl?: string;
   qualityCount: number;
   onDownload?: () => void;
 }) {

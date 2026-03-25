@@ -3,6 +3,12 @@ import { Link2, Loader2, Download, X, ClipboardPaste, Sparkles, Images } from "l
 import SEOHead from "@/components/SEOHead";
 import { supabase } from "@/integrations/supabase/client";
 
+function isIOSDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 export default function SlideshowDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);

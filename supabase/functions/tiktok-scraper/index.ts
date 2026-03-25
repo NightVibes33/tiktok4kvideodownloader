@@ -126,6 +126,18 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
     const d = data.data;
     const qualities: QualityOption[] = [];
 
+    // Check if this is a slideshow/image post
+    const slideshowImages: string[] = [];
+    if (d.images && Array.isArray(d.images)) {
+      for (const imgUrl of d.images) {
+        if (typeof imgUrl === 'string' && imgUrl) {
+          slideshowImages.push(imgUrl);
+        } else if (imgUrl?.url) {
+          slideshowImages.push(imgUrl.url);
+        }
+      }
+    }
+
     if (d.hdplay) {
       qualities.push({ label: 'HD (no watermark)', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
     }
@@ -154,6 +166,8 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
         height: d.height || 0,
       },
       qualities,
+      images: slideshowImages,
+      isSlideshow: slideshowImages.length > 0,
       stats: {
         diggCount: d.digg_count,
         commentCount: d.comment_count,
@@ -168,10 +182,43 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
   }
 }
 
+function extractSlideshowImages(itemInfo: any): string[] {
+  const images: string[] = [];
+
+  // imagePost.images[] structure (common in __UNIVERSAL_DATA)
+  const imagePost = itemInfo?.imagePost;
+  if (imagePost?.images && Array.isArray(imagePost.images)) {
+    for (const img of imagePost.images) {
+      const url = img?.imageURL?.urlList?.[0] || img?.imageUrl?.urlList?.[0] || img?.url || '';
+      if (url) images.push(url);
+    }
+  }
+
+  // Alternative: imagePostInfo structure
+  const imagePostInfo = itemInfo?.imagePostInfo;
+  if (images.length === 0 && imagePostInfo?.images && Array.isArray(imagePostInfo.images)) {
+    for (const img of imagePostInfo.images) {
+      const url = img?.imageURL?.urlList?.[0] || img?.imageUrl?.urlList?.[0] || img?.url || '';
+      if (url) images.push(url);
+    }
+  }
+
+  // Alternative: sticker/photo structure
+  if (images.length === 0 && itemInfo?.stickersOnItem) {
+    for (const s of itemInfo.stickersOnItem) {
+      const url = s?.stickerText?.[0] || '';
+      if (url) images.push(url);
+    }
+  }
+
+  return images;
+}
+
 function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
   const bestUrl = qualities[0]?.url || video?.downloadAddr || video?.playAddr || '';
+  const slideshowImages = extractSlideshowImages(itemInfo);
 
   return {
     id: itemInfo?.id || '',
@@ -191,6 +238,8 @@ function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) 
       height: video?.height || video?.Height || 0,
     },
     qualities,
+    images: slideshowImages,
+    isSlideshow: slideshowImages.length > 0,
     stats: itemInfo?.stats || {},
     cookieToken: encryptedCookies,
   };

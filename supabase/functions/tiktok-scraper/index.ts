@@ -126,6 +126,18 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
     const d = data.data;
     const qualities: QualityOption[] = [];
 
+    // Check if this is a slideshow/image post
+    const slideshowImages: string[] = [];
+    if (d.images && Array.isArray(d.images)) {
+      for (const imgUrl of d.images) {
+        if (typeof imgUrl === 'string' && imgUrl) {
+          slideshowImages.push(imgUrl);
+        } else if (imgUrl?.url) {
+          slideshowImages.push(imgUrl.url);
+        }
+      }
+    }
+
     if (d.hdplay) {
       qualities.push({ label: 'HD (no watermark)', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
     }
@@ -154,6 +166,8 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
         height: d.height || 0,
       },
       qualities,
+      images: slideshowImages,
+      isSlideshow: slideshowImages.length > 0,
       stats: {
         diggCount: d.digg_count,
         commentCount: d.comment_count,

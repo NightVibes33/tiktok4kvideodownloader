@@ -32,8 +32,7 @@ export default function SlideshowDownloader() {
       if (fnError) throw new Error(fnError.message);
       if (data?.error) throw new Error(data.error);
 
-      // Extract slideshow images from the response
-      const slideImages: string[] = data?.images || data?.imagePost?.images?.map((img: any) => img.imageURL?.urlList?.[0] || img.url) || [];
+      const slideImages: string[] = data?.images || [];
 
       if (slideImages.length === 0) {
         throw new Error("No slideshow images found. This may be a regular video — try the video downloader instead.");

@@ -261,6 +261,43 @@ function DownloadActions({
     }
   }, [downloadUrl, downloading]);
 
+  const [downloadingAudio, setDownloadingAudio] = useState(false);
+
+  const handleAudioDownload = useCallback(async () => {
+    if (!audioDownloadUrl || downloadingAudio) return;
+
+    if (!isIOSDevice()) {
+      window.open(audioDownloadUrl, "_top", "noopener,noreferrer");
+      return;
+    }
+
+    setDownloadingAudio(true);
+    try {
+      const response = await fetch(audioDownloadUrl);
+      if (!response.ok) throw new Error("Failed to download audio");
+
+      const blob = await response.blob();
+      const file = new File([blob], "tiktok-audio.mp3", { type: "audio/mpeg" });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: "TikTok Audio" });
+      } else {
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = "tiktok-audio.mp3";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch {
+      window.open(audioDownloadUrl, "_top", "noopener,noreferrer");
+    } finally {
+      setDownloadingAudio(false);
+    }
+  }, [audioDownloadUrl, downloadingAudio]);
+
   return (
     <div className="space-y-3">
       <button
@@ -273,15 +310,14 @@ function DownloadActions({
       </button>
 
       {audioDownloadUrl && (
-        <a
-          href={audioDownloadUrl}
-          target="_top"
-          rel="noopener noreferrer"
+        <button
+          onClick={handleAudioDownload}
+          disabled={downloadingAudio}
           className="w-full flex items-center justify-center gap-2.5 py-3 bg-accent/15 hover:bg-accent/25 text-accent ring-1 ring-accent/30 hover:ring-accent/50 rounded-xl font-semibold text-sm transition-all ease-expo duration-200"
         >
-          <Music className="w-4 h-4" />
-          Download Audio
-        </a>
+          {downloadingAudio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Music className="w-4 h-4" />}
+          {downloadingAudio ? "Preparing Audio" : "Download Audio"}
+        </button>
       )}
 
       <button

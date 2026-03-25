@@ -171,26 +171,7 @@ export default function SlideshowDownloader() {
             </p>
             <div className="grid grid-cols-2 gap-3">
               {images.map((imgUrl, i) => (
-                <div key={i} className="relative group/img rounded-xl overflow-hidden ring-1 ring-border/50 bg-secondary">
-                  <img
-                    src={imgUrl}
-                    alt={`Slide ${i + 1}`}
-                    className="w-full aspect-square object-cover"
-                    loading="lazy"
-                  />
-                  <a
-                    href={imgUrl}
-                    download={`tiktok-slide-${i + 1}.jpg`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute inset-0 flex items-center justify-center bg-background/60 opacity-0 group-hover/img:opacity-100 transition-opacity duration-200"
-                  >
-                    <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">
-                      <Download className="w-4 h-4" />
-                      Save
-                    </div>
-                  </a>
-                </div>
+                <SlideImageCard key={i} imgUrl={imgUrl} index={i} />
               ))}
             </div>
           </div>

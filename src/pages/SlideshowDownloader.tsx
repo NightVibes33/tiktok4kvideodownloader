@@ -3,6 +3,71 @@ import { Link2, Loader2, Download, X, ClipboardPaste, Sparkles, Images } from "l
 import SEOHead from "@/components/SEOHead";
 import { supabase } from "@/integrations/supabase/client";
 
+function isIOSDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+function SlideImageCard({ imgUrl, index }: { imgUrl: string; index: number }) {
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    if (saving) return;
+
+    if (!isIOSDevice()) {
+      // Desktop: open in new tab
+      window.open(imgUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch(imgUrl);
+      if (!response.ok) throw new Error("Failed to fetch image");
+
+      const blob = await response.blob();
+      const file = new File([blob], `tiktok-slide-${index + 1}.jpg`, { type: blob.type || "image/jpeg" });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `TikTok Slide ${index + 1}` });
+      } else {
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = `tiktok-slide-${index + 1}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch {
+      window.open(imgUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      setSaving(false);
+    }
+  }, [imgUrl, index, saving]);
+
+  return (
+    <div className="relative rounded-xl overflow-hidden ring-1 ring-border/50 bg-secondary">
+      <img
+        src={imgUrl}
+        alt={`Slide ${index + 1}`}
+        className="w-full aspect-square object-cover"
+        loading="lazy"
+      />
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-semibold shadow-lg transition-all duration-200"
+      >
+        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+        {saving ? "Saving…" : "Save"}
+      </button>
+    </div>
+  );
+}
+
 export default function SlideshowDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -165,26 +230,7 @@ export default function SlideshowDownloader() {
             </p>
             <div className="grid grid-cols-2 gap-3">
               {images.map((imgUrl, i) => (
-                <div key={i} className="relative group/img rounded-xl overflow-hidden ring-1 ring-border/50 bg-secondary">
-                  <img
-                    src={imgUrl}
-                    alt={`Slide ${i + 1}`}
-                    className="w-full aspect-square object-cover"
-                    loading="lazy"
-                  />
-                  <a
-                    href={imgUrl}
-                    download={`tiktok-slide-${i + 1}.jpg`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute inset-0 flex items-center justify-center bg-background/60 opacity-0 group-hover/img:opacity-100 transition-opacity duration-200"
-                  >
-                    <div className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-semibold">
-                      <Download className="w-4 h-4" />
-                      Save
-                    </div>
-                  </a>
-                </div>
+                <SlideImageCard key={i} imgUrl={imgUrl} index={i} />
               ))}
             </div>
           </div>

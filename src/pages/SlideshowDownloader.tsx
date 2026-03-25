@@ -9,6 +9,65 @@ function isIOSDevice(): boolean {
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
+function SlideImageCard({ imgUrl, index }: { imgUrl: string; index: number }) {
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = useCallback(async () => {
+    if (saving) return;
+
+    if (!isIOSDevice()) {
+      // Desktop: open in new tab
+      window.open(imgUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch(imgUrl);
+      if (!response.ok) throw new Error("Failed to fetch image");
+
+      const blob = await response.blob();
+      const file = new File([blob], `tiktok-slide-${index + 1}.jpg`, { type: blob.type || "image/jpeg" });
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `TikTok Slide ${index + 1}` });
+      } else {
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = `tiktok-slide-${index + 1}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      }
+    } catch {
+      window.open(imgUrl, "_blank", "noopener,noreferrer");
+    } finally {
+      setSaving(false);
+    }
+  }, [imgUrl, index, saving]);
+
+  return (
+    <div className="relative rounded-xl overflow-hidden ring-1 ring-border/50 bg-secondary">
+      <img
+        src={imgUrl}
+        alt={`Slide ${index + 1}`}
+        className="w-full aspect-square object-cover"
+        loading="lazy"
+      />
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-semibold shadow-lg transition-all duration-200"
+      >
+        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+        {saving ? "Saving…" : "Save"}
+      </button>
+    </div>
+  );
+}
+
 export default function SlideshowDownloader() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);

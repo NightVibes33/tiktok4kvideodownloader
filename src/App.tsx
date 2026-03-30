@@ -31,6 +31,7 @@ const App = () => (
             <Route path="/how-to-download" element={<HowToDownload />} />
             <Route path="/profile-analyzer" element={<ProfileAnalyzer />} />
             <Route path="/slideshow-downloader" element={<SlideshowDownloader />} />
+            <Route path="/ios-shortcut" element={<IOSShortcut />} />
             
             <Route path="*" element={<NotFound />} />
           </Route>

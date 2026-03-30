@@ -353,6 +353,8 @@ export default function TikTokDownloader() {
   const [totalDownloads, setTotalDownloads] = useState<number | null>(_cachedDownloads);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const { history, addToHistory, removeFromHistory, clearHistory } = useDownloadHistory();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoFetchTriggered = useRef(false);
 
   useEffect(() => {
     if (_cachedDownloads !== null) return;
@@ -368,6 +370,22 @@ export default function TikTokDownloader() {
         }
       });
   }, []);
+
+  // Auto-detect ?url= parameter (used by iOS Shortcut / share sheet)
+  useEffect(() => {
+    const sharedUrl = searchParams.get("url");
+    if (sharedUrl && !autoFetchTriggered.current) {
+      autoFetchTriggered.current = true;
+      setUrl(sharedUrl);
+      // Remove the param from the URL bar cleanly
+      setSearchParams({}, { replace: true });
+      // Auto-submit after a tick
+      setTimeout(() => {
+        const form = document.querySelector<HTMLFormElement>("#tiktok-form");
+        form?.requestSubmit();
+      }, 100);
+    }
+  }, [searchParams, setSearchParams]);
 
   const onDownloadTriggered = useCallback(async () => {
     // Counter is now incremented server-side in the tiktok-download edge function

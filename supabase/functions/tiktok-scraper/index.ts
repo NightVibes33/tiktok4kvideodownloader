@@ -87,7 +87,7 @@ function hasOnlyInternalBitrateVariants(video: any): boolean {
     .map((br) => String(br?.GearName || br?.QualityType || br?.qualityType || '').trim())
     .filter(Boolean);
 
-  return labels.length > 0 && labels.every((label) => /^(lowest|normal|adapt_[^_]+)_\d+_\d+$/i.test(label));
+  return labels.length > 0 && labels.every((label) => /^(lowest|normal|adapt_)/i.test(label));
 }
 
 function extractQualities(video: any): QualityOption[] {

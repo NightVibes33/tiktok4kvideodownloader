@@ -501,7 +501,7 @@ export default function TikTokDownloader() {
             </div>
           )}
         {/* Input */}
-        <form onSubmit={handleFetch} className="relative group space-y-2">
+        <form id="tiktok-form" onSubmit={handleFetch} className="relative group space-y-2">
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
           <div className="relative">
             <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">

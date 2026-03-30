@@ -12,6 +12,7 @@ import About from "./pages/About.tsx";
 import HowToDownload from "./pages/HowToDownload.tsx";
 import ProfileAnalyzer from "./pages/ProfileAnalyzer.tsx";
 import SlideshowDownloader from "./pages/SlideshowDownloader.tsx";
+import IOSShortcut from "./pages/IOSShortcut.tsx";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/how-to-download" element={<HowToDownload />} />
             <Route path="/profile-analyzer" element={<ProfileAnalyzer />} />
             <Route path="/slideshow-downloader" element={<SlideshowDownloader />} />
+            <Route path="/ios-shortcut" element={<IOSShortcut />} />
             
             <Route path="*" element={<NotFound />} />
           </Route>

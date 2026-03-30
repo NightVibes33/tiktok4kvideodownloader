@@ -46,6 +46,7 @@ interface QualityOption {
   height: number;
   bitrate: number;
   watermark: boolean;
+  videoOnly?: boolean;
 }
 
 function extractQualities(video: any): QualityOption[] {
@@ -63,6 +64,11 @@ function extractQualities(video: any): QualityOption[] {
       const bitrate = br.Bitrate || br.bitrate || 0;
       const quality = br.GearName || br.QualityType || br.qualityType || '';
 
+      // Detect video-only adaptive streams (no audio muxed in)
+      const isAdaptive = /^adapt_/i.test(quality) || /CodecType.*bytevc1/i.test(quality);
+      // Also check if the URL hints at video-only (some CDN paths include 'video' without 'audio')
+      const isVideoOnly = isAdaptive || br.CodecType === 'bytevc1' || br.codecType === 'bytevc1';
+
       let label = quality;
       if (!label) {
         const maxDim = Math.max(w, h);
@@ -78,6 +84,9 @@ function extractQualities(video: any): QualityOption[] {
       if (label.includes('720')) label = '720p HD';
       if (label.includes('1080')) label = '1080p HD';
       if (label.includes('2160')) label = '4K';
+
+      // Skip video-only adaptive streams entirely — they cause audio desync
+      if (isVideoOnly) continue;
 
       if (!seenLabels.has(label)) {
         seenLabels.add(label);

@@ -46,6 +46,7 @@ interface QualityOption {
   height: number;
   bitrate: number;
   watermark: boolean;
+  videoOnly?: boolean;
 }
 
 function extractQualities(video: any): QualityOption[] {

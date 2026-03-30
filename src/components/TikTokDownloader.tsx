@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp, Music } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";

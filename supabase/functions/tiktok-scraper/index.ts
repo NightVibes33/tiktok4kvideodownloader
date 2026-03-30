@@ -46,11 +46,53 @@ interface QualityOption {
   height: number;
   bitrate: number;
   watermark: boolean;
-  videoOnly?: boolean;
+}
+
+function resolutionLabel(maxDim: number): string {
+  if (maxDim >= 2160) return '4K';
+  if (maxDim >= 1440) return '1440p';
+  if (maxDim >= 1080) return '1080p HD';
+  if (maxDim >= 720) return '720p HD';
+  if (maxDim >= 540) return '540p';
+  if (maxDim >= 480) return '480p';
+  if (maxDim > 0) return `${maxDim}p`;
+  return 'Standard';
+}
+
+function normalizeQualityLabel(rawLabel: string, width: number, height: number): string {
+  const label = rawLabel.trim();
+  const lower = label.toLowerCase();
+  const maxDim = Math.max(width, height);
+  const matchedResolution = lower.match(/(?:lowest|normal|adapt_[^_]+)_(\d+)_\d+/)?.[1];
+  const resolvedDim = matchedResolution ? Number(matchedResolution) : maxDim;
+  const fallback = resolutionLabel(resolvedDim);
+
+  if (!label || label === 'normal') return fallback;
+  if (/^lowest_\d+_\d+$/i.test(label)) return `${fallback} · smaller file`;
+  if (/^normal_\d+_\d+$/i.test(label)) return fallback;
+  if (lower.includes('2160') || lower.includes('4k')) return '4K';
+  if (lower.includes('1080')) return '1080p HD';
+  if (lower.includes('720')) return '720p HD';
+  if (lower.includes('540')) return '540p';
+  if (lower.includes('480')) return '480p';
+
+  return label;
+}
+
+function hasOnlyInternalBitrateVariants(video: any): boolean {
+  const bitrateInfo = video?.bitrateInfo || video?.bitRateInfo || [];
+  if (!Array.isArray(bitrateInfo) || bitrateInfo.length === 0) return false;
+
+  const labels = bitrateInfo
+    .map((br) => String(br?.GearName || br?.QualityType || br?.qualityType || '').trim())
+    .filter(Boolean);
+
+  return labels.length > 0 && labels.every((label) => /^(lowest|normal|adapt_)/i.test(label));
 }
 
 function extractQualities(video: any): QualityOption[] {
   const qualities: QualityOption[] = [];
+  const seenUrls = new Set<string>();
   const seenLabels = new Set<string>();
 
   const bitrateInfo = video?.bitrateInfo || video?.bitRateInfo || [];
@@ -62,54 +104,38 @@ function extractQualities(video: any): QualityOption[] {
       const w = br.PlayAddr?.Width || br.playAddr?.Width || br.Width || 0;
       const h = br.PlayAddr?.Height || br.playAddr?.Height || br.Height || 0;
       const bitrate = br.Bitrate || br.bitrate || 0;
-      const quality = br.GearName || br.QualityType || br.qualityType || '';
+      const rawLabel = br.GearName || br.QualityType || br.qualityType || '';
+      const codecType = String(br.CodecType || br.codecType || '').toLowerCase();
+      const isAdaptive = /^adapt_/i.test(rawLabel);
+      const isVideoOnly = isAdaptive || codecType === 'bytevc1';
 
-      // Detect video-only adaptive streams (no audio muxed in)
-      const isAdaptive = /^adapt_/i.test(quality) || /CodecType.*bytevc1/i.test(quality);
-      // Also check if the URL hints at video-only (some CDN paths include 'video' without 'audio')
-      const isVideoOnly = isAdaptive || br.CodecType === 'bytevc1' || br.codecType === 'bytevc1';
-
-      let label = quality;
-      if (!label) {
-        const maxDim = Math.max(w, h);
-        if (maxDim >= 2160) label = '4K';
-        else if (maxDim >= 1080) label = '1080p';
-        else if (maxDim >= 720) label = '720p';
-        else if (maxDim >= 540) label = '540p';
-        else if (maxDim >= 480) label = '480p';
-        else label = `${maxDim}p`;
-      }
-
-      if (label === 'normal') label = '540p';
-      if (label.includes('720')) label = '720p HD';
-      if (label.includes('1080')) label = '1080p HD';
-      if (label.includes('2160')) label = '4K';
-
-      // Skip video-only adaptive streams entirely — they cause audio desync
+      // Skip video-only DASH/adaptive variants that break audio sync when downloaded directly.
       if (isVideoOnly) continue;
 
-      if (!seenLabels.has(label)) {
-        seenLabels.add(label);
-        qualities.push({ label, url: playAddr, width: w, height: h, bitrate, watermark: false });
-      }
+      const label = normalizeQualityLabel(rawLabel, w, h);
+      const dedupeKey = `${label}:${w}x${h}`;
+      if (seenUrls.has(playAddr) || seenLabels.has(dedupeKey)) continue;
+
+      seenUrls.add(playAddr);
+      seenLabels.add(dedupeKey);
+      qualities.push({ label, url: playAddr, width: w, height: h, bitrate, watermark: false });
     }
   }
 
   const playAddrList = video?.playAddr?.UrlList || video?.PlayAddr?.UrlList || [];
-  const playUrl = playAddrList[0] || (typeof video?.playAddr === 'string' ? video.playAddr : '');
-  if (playUrl && !qualities.some(q => q.url === playUrl)) {
+  const playUrl = playAddrList[0]
+    || (typeof video?.playAddr === 'string' ? video.playAddr : '')
+    || (typeof video?.PlayAddr === 'string' ? video.PlayAddr : '');
+
+  if (playUrl && !seenUrls.has(playUrl)) {
     const w = video?.width || video?.Width || 0;
     const h = video?.height || video?.Height || 0;
-    const maxDim = Math.max(w, h);
-    let label = video?.ratio || '';
-    if (!label) {
-      if (maxDim >= 2160) label = '4K';
-      else if (maxDim >= 1080) label = '1080p';
-      else if (maxDim >= 720) label = '720p';
-      else label = `${maxDim}p`;
-    }
-    if (!seenLabels.has(label + ' (no watermark)')) {
-      qualities.push({ label: label + ' (no watermark)', url: playUrl, width: w, height: h, bitrate: 0, watermark: false });
+    const label = normalizeQualityLabel(video?.ratio || '', w, h);
+    const dedupeKey = `${label}:${w}x${h}`;
+    if (!seenLabels.has(dedupeKey)) {
+      seenUrls.add(playUrl);
+      seenLabels.add(dedupeKey);
+      qualities.push({ label, url: playUrl, width: w, height: h, bitrate: 0, watermark: false });
     }
   }
 
@@ -148,10 +174,10 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
     }
 
     if (d.hdplay) {
-      qualities.push({ label: 'HD (no watermark)', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
+      qualities.push({ label: 'High quality', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
     }
     if (d.play) {
-      qualities.push({ label: 'Standard (no watermark)', url: d.play, width: 0, height: 0, bitrate: 0, watermark: false });
+      qualities.push({ label: 'Standard quality', url: d.play, width: 0, height: 0, bitrate: 0, watermark: false });
     }
     if (d.wmplay) {
       qualities.push({ label: 'With watermark', url: d.wmplay, width: 0, height: 0, bitrate: 0, watermark: true });
@@ -226,7 +252,11 @@ function extractSlideshowImages(itemInfo: any): string[] {
 function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
   const qualities = extractQualities(video);
-  const bestUrl = qualities[0]?.url || video?.downloadAddr || video?.playAddr || '';
+  const playAddrUrl = video?.playAddr?.UrlList?.[0]
+    || video?.PlayAddr?.UrlList?.[0]
+    || (typeof video?.playAddr === 'string' ? video.playAddr : '')
+    || (typeof video?.PlayAddr === 'string' ? video.PlayAddr : '');
+  const bestUrl = qualities[0]?.url || playAddrUrl || video?.downloadAddr || '';
   const slideshowImages = extractSlideshowImages(itemInfo);
 
   return {
@@ -327,9 +357,10 @@ Deno.serve(async (req) => {
       }
     }
 
+    const resolvedUrl = response.url || url;
+
     if (!scriptData) {
       console.log('No embedded script data found, trying fallback API...');
-      const resolvedUrl = response.url || url;
       const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
       if (fallbackResult) {
         console.log('Successfully fetched via fallback API (no script data)');
@@ -352,6 +383,18 @@ Deno.serve(async (req) => {
       if (itemInfo) {
         const result = buildResult(itemInfo, null, encryptedCookies);
         if (result.qualities.length > 0) {
+          if (hasOnlyInternalBitrateVariants(itemInfo?.video)) {
+            console.log('Only internal bitrate variants found, trying fallback API...');
+            const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
+            if (fallbackResult) {
+              console.log('Using fallback API result for stable muxed download');
+              return new Response(
+                JSON.stringify(fallbackResult),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+
           console.log(`Extracted ${result.qualities.length} quality options`);
           return new Response(
             JSON.stringify(result),
@@ -379,6 +422,18 @@ Deno.serve(async (req) => {
         };
         const result = buildResult(itemWithAuthor, item.video, encryptedCookies);
         if (result.qualities.length > 0) {
+          if (hasOnlyInternalBitrateVariants(item?.video)) {
+            console.log('Only internal SIGI bitrate variants found, trying fallback API...');
+            const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
+            if (fallbackResult) {
+              console.log('Using fallback API result for stable muxed download (SIGI)');
+              return new Response(
+                JSON.stringify(fallbackResult),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+          }
+
           console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
           return new Response(
             JSON.stringify(result),
@@ -389,7 +444,6 @@ Deno.serve(async (req) => {
     }
 
     // Fallback: use external API for age-restricted or classified videos
-    const resolvedUrl = response.url || url;
     const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
     if (fallbackResult) {
       console.log('Successfully fetched via fallback API');

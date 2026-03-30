@@ -350,6 +350,7 @@ export default function TikTokDownloader() {
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [totalDownloads, setTotalDownloads] = useState<number | null>(_cachedDownloads);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const { history, addToHistory, removeFromHistory, clearHistory } = useDownloadHistory();
 
   useEffect(() => {
@@ -557,9 +558,19 @@ export default function TikTokDownloader() {
                     <AuthorInfo author={videoData.author} />
 
                     {videoData.description && (
-                      <p className="text-sm text-body line-clamp-3 leading-relaxed">
-                        {videoData.description}
-                      </p>
+                      <div>
+                        <p className={`text-sm text-body leading-relaxed ${!descriptionExpanded ? 'line-clamp-3' : ''}`}>
+                          {videoData.description}
+                        </p>
+                        {videoData.description.length > 100 && (
+                          <button
+                            onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                            className="text-xs text-primary hover:underline mt-1"
+                          >
+                            {descriptionExpanded ? 'Show less' : 'Show more'}
+                          </button>
+                        )}
+                      </div>
                     )}
 
                     <StatsRow stats={videoData.stats} />

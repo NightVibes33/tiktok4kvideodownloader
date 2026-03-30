@@ -350,6 +350,7 @@ export default function TikTokDownloader() {
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [totalDownloads, setTotalDownloads] = useState<number | null>(_cachedDownloads);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const { history, addToHistory, removeFromHistory, clearHistory } = useDownloadHistory();
 
   useEffect(() => {

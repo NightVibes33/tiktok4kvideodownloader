@@ -173,11 +173,10 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
       }
     }
 
-    if (d.hdplay) {
-      qualities.push({ label: 'High quality', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
-    }
     if (d.play) {
-      qualities.push({ label: 'Standard quality', url: d.play, width: 0, height: 0, bitrate: 0, watermark: false });
+      qualities.push({ label: 'Compatible quality', url: d.play, width: 0, height: 0, bitrate: 0, watermark: false });
+    } else if (d.hdplay) {
+      qualities.push({ label: 'High quality', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
     }
     if (d.wmplay) {
       qualities.push({ label: 'With watermark', url: d.wmplay, width: 0, height: 0, bitrate: 0, watermark: true });

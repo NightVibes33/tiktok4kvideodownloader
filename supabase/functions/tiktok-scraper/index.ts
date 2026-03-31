@@ -105,12 +105,10 @@ function extractQualities(video: any): QualityOption[] {
       const h = br.PlayAddr?.Height || br.playAddr?.Height || br.Height || 0;
       const bitrate = br.Bitrate || br.bitrate || 0;
       const rawLabel = br.GearName || br.QualityType || br.qualityType || '';
-      const codecType = String(br.CodecType || br.codecType || '').toLowerCase();
+      // Only skip DASH adaptive segments (adapt_ prefix) which are video-only without muxed audio.
+      // Keep bytevc1/HEVC muxed streams — they have audio and provide higher quality.
       const isAdaptive = /^adapt_/i.test(rawLabel);
-      const isVideoOnly = isAdaptive || codecType === 'bytevc1';
-
-      // Skip video-only DASH/adaptive variants that break audio sync when downloaded directly.
-      if (isVideoOnly) continue;
+      if (isAdaptive) continue;
 
       const label = normalizeQualityLabel(rawLabel, w, h);
       const dedupeKey = `${label}:${w}x${h}`;

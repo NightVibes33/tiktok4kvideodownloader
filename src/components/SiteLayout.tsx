@@ -22,11 +22,12 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
   const location = useLocation();
 
   return (
-    <div className="min-h-svh bg-background text-foreground flex flex-col">
-      {/* Warp shader background */}
-      <div className="fixed inset-0 -z-10 pointer-events-none">
+    <div className="min-h-svh text-foreground flex flex-col relative">
+      {/* Warp shader — fixed behind everything */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-background" />
         <Warp
-          style={{ width: "100vw", height: "100vh", opacity: 0.55 }}
+          style={{ width: "100vw", height: "100vh", position: "absolute", inset: 0 }}
           proportion={0.5}
           softness={1}
           distortion={0.3}
@@ -44,6 +45,8 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
             "hsl(200, 100%, 60%)",
           ]}
         />
+        {/* Darken overlay to keep text readable */}
+        <div className="absolute inset-0 bg-background/60" />
       </div>
 
       {/* Header */}

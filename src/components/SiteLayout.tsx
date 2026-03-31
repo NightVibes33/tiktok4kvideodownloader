@@ -23,34 +23,31 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
 
   return (
     <div className="min-h-svh text-foreground flex flex-col relative">
-      {/* Warp shader — fixed behind everything */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-background" />
+      {/* Warp shader — fixed behind everything, using theme tokens */}
+      <div className="fixed inset-0 -z-10 pointer-events-none opacity-40">
         <Warp
-          style={{ width: "100vw", height: "100vh", position: "absolute", inset: 0 }}
+          style={{ width: "100vw", height: "100vh" }}
           proportion={0.5}
-          softness={1}
-          distortion={0.3}
-          swirl={0.95}
-          swirlIterations={12}
+          softness={1.1}
+          distortion={0.22}
+          swirl={0.75}
+          swirlIterations={10}
           shape="checks"
-          shapeScale={0.12}
-          scale={1.05}
+          shapeScale={0.1}
+          scale={1.02}
           rotation={0}
-          speed={0.7}
+          speed={0.45}
           colors={[
-            "hsl(330, 100%, 60%)",
-            "hsl(285, 100%, 65%)",
-            "hsl(175, 100%, 55%)",
-            "hsl(200, 100%, 60%)",
+            "hsl(240, 8%, 3%)",
+            "hsl(240, 6%, 10%)",
+            "hsl(330, 100%, 45%)",
+            "hsl(175, 100%, 35%)",
           ]}
         />
-        {/* Darken overlay to keep text readable */}
-        <div className="absolute inset-0 bg-background/60" />
       </div>
 
       {/* Header */}
-      <header className="relative z-20 border-b border-border/50">
+      <header className="relative z-10 bg-background/80 backdrop-blur-md border-b border-border/50">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div />
 

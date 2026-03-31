@@ -74,8 +74,7 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
         {children ?? <Outlet />}
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-20 border-t border-border/50">
+      <footer className="relative z-10 bg-background/80 backdrop-blur-md border-t border-border/50">
         <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
           <nav className="flex flex-wrap justify-center gap-x-6 gap-y-2">
             {footerLinks.map((link) => (

@@ -426,7 +426,7 @@ Deno.serve(async (req) => {
     // Primary scrape with retry
     let response: Response;
     try {
-      response = await fetchWithRetry(url, headers);
+      response = await fetchWithRetry(trimmed, headers);
     } catch {
       console.log('Primary scrape failed after retries, trying fallback APIs...');
       const encryptedCookies = await encryptCookies('');

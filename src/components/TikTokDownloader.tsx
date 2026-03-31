@@ -260,7 +260,7 @@ function DownloadActions({
     } finally {
       setDownloading(false);
     }
-  }, [downloadUrl, downloading]);
+  }, [downloadUrl, downloading, onDownload]);
 
   const [downloadingAudio, setDownloadingAudio] = useState(false);
 

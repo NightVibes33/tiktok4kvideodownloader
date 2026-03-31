@@ -32,7 +32,6 @@ async function encryptCookies(cookies: string): Promise<string> {
     keyMaterial,
     encoder.encode(cookies)
   );
-  // Combine iv + ciphertext, base64url encode
   const combined = new Uint8Array(iv.length + new Uint8Array(encrypted).length);
   combined.set(iv);
   combined.set(new Uint8Array(encrypted), iv.length);
@@ -79,17 +78,6 @@ function normalizeQualityLabel(rawLabel: string, width: number, height: number):
   return label;
 }
 
-function hasOnlyInternalBitrateVariants(video: any): boolean {
-  const bitrateInfo = video?.bitrateInfo || video?.bitRateInfo || [];
-  if (!Array.isArray(bitrateInfo) || bitrateInfo.length === 0) return false;
-
-  const labels = bitrateInfo
-    .map((br) => String(br?.GearName || br?.QualityType || br?.qualityType || '').trim())
-    .filter(Boolean);
-
-  return labels.length > 0 && labels.every((label) => /^(lowest|normal|adapt_)/i.test(label));
-}
-
 function extractQualities(video: any): QualityOption[] {
   const qualities: QualityOption[] = [];
   const seenUrls = new Set<string>();
@@ -106,7 +94,6 @@ function extractQualities(video: any): QualityOption[] {
       const bitrate = br.Bitrate || br.bitrate || 0;
       const rawLabel = br.GearName || br.QualityType || br.qualityType || '';
       // Only skip DASH adaptive segments (adapt_ prefix) which are video-only without muxed audio.
-      // Keep bytevc1/HEVC muxed streams — they have audio and provide higher quality.
       const isAdaptive = /^adapt_/i.test(rawLabel);
       if (isAdaptive) continue;
 
@@ -147,7 +134,21 @@ function extractQualities(video: any): QualityOption[] {
   return qualities;
 }
 
-async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string): Promise<object | null> {
+// ─── Fallback APIs ───
+
+interface FallbackResult {
+  id: string;
+  description: string;
+  author: { username: string; nickname: string; avatar: string };
+  video: { url: string; cover: string; dynamicCover: string; duration: number; ratio: string; width: number; height: number };
+  qualities: QualityOption[];
+  images: string[];
+  isSlideshow: boolean;
+  stats: Record<string, number>;
+  cookieToken: string;
+}
+
+async function fetchFromTikwm(videoUrl: string, encryptedCookies: string): Promise<FallbackResult | null> {
   try {
     const apiUrl = `https://www.tikwm.com/api/?url=${encodeURIComponent(videoUrl)}&hd=1`;
     const resp = await fetch(apiUrl, {
@@ -159,22 +160,21 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
     const d = data.data;
     const qualities: QualityOption[] = [];
 
-    // Check if this is a slideshow/image post
     const slideshowImages: string[] = [];
     if (d.images && Array.isArray(d.images)) {
       for (const imgUrl of d.images) {
-        if (typeof imgUrl === 'string' && imgUrl) {
-          slideshowImages.push(imgUrl);
-        } else if (imgUrl?.url) {
-          slideshowImages.push(imgUrl.url);
-        }
+        if (typeof imgUrl === 'string' && imgUrl) slideshowImages.push(imgUrl);
+        else if (imgUrl?.url) slideshowImages.push(imgUrl.url);
       }
     }
 
+    // Offer BOTH HD and compatible when available
+    if (d.hdplay) {
+      qualities.push({ label: 'HD quality (no watermark)', url: d.hdplay, width: d.hd_width || d.width || 0, height: d.hd_height || d.height || 0, bitrate: 0, watermark: false });
+    }
     if (d.play) {
-      qualities.push({ label: 'Compatible quality', url: d.play, width: 0, height: 0, bitrate: 0, watermark: false });
-    } else if (d.hdplay) {
-      qualities.push({ label: 'High quality', url: d.hdplay, width: 0, height: 0, bitrate: 0, watermark: false });
+      const playLabel = d.hdplay ? 'Standard quality (no watermark)' : 'Best available (no watermark)';
+      qualities.push({ label: playLabel, url: d.play, width: d.width || 0, height: d.height || 0, bitrate: 0, watermark: false });
     }
     if (d.wmplay) {
       qualities.push({ label: 'With watermark', url: d.wmplay, width: 0, height: 0, bitrate: 0, watermark: true });
@@ -209,15 +209,90 @@ async function fetchFromFallbackApi(videoUrl: string, encryptedCookies: string):
       cookieToken: encryptedCookies,
     };
   } catch (e) {
-    console.error('Fallback API error:', e);
+    console.error('TikWM fallback error:', e);
     return null;
   }
 }
 
+async function fetchFromTikcdn(videoUrl: string, encryptedCookies: string): Promise<FallbackResult | null> {
+  try {
+    const resp = await fetch('https://tikcdn.io/ssstik/video', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      },
+      body: `id=${encodeURIComponent(videoUrl)}&locale=en&tt=1`,
+    });
+    if (!resp.ok) return null;
+    const html = await resp.text();
+
+    // Extract download links from the HTML response
+    const hdMatch = html.match(/href="(https?:\/\/[^"]+)"[^>]*>\s*Without watermark\s*\(HD\)/i);
+    const sdMatch = html.match(/href="(https?:\/\/[^"]+)"[^>]*>\s*Without watermark/i);
+
+    if (!hdMatch && !sdMatch) return null;
+
+    const qualities: QualityOption[] = [];
+    if (hdMatch) qualities.push({ label: 'HD quality (no watermark)', url: hdMatch[1], width: 0, height: 0, bitrate: 0, watermark: false });
+    if (sdMatch && sdMatch[1] !== hdMatch?.[1]) qualities.push({ label: 'Standard quality (no watermark)', url: sdMatch[1], width: 0, height: 0, bitrate: 0, watermark: false });
+
+    if (qualities.length === 0) return null;
+
+    return {
+      id: '',
+      description: '',
+      author: { username: '', nickname: '', avatar: '' },
+      video: { url: qualities[0].url, cover: '', dynamicCover: '', duration: 0, ratio: '', width: 0, height: 0 },
+      qualities,
+      images: [],
+      isSlideshow: false,
+      stats: {},
+      cookieToken: encryptedCookies,
+    };
+  } catch (e) {
+    console.error('TikCDN fallback error:', e);
+    return null;
+  }
+}
+
+/** Try all fallback APIs in order, return first success */
+async function fetchFromFallbackApis(videoUrl: string, encryptedCookies: string): Promise<FallbackResult | null> {
+  // Try tikwm first (most reliable, has metadata)
+  const tikwmResult = await fetchFromTikwm(videoUrl, encryptedCookies);
+  if (tikwmResult) return tikwmResult;
+
+  // Try tikcdn as second fallback
+  const tikcdnResult = await fetchFromTikcdn(videoUrl, encryptedCookies);
+  if (tikcdnResult) return tikcdnResult;
+
+  return null;
+}
+
+/** Merge fallback HD qualities into primary result if primary is missing HD */
+function mergeQualities(primary: QualityOption[], fallback: QualityOption[]): QualityOption[] {
+  const primaryUrls = new Set(primary.map(q => q.url));
+  const primaryMaxRes = primary.reduce((max, q) => Math.max(max, q.width, q.height), 0);
+  const merged = [...primary];
+
+  for (const fq of fallback) {
+    if (fq.watermark) continue;
+    if (primaryUrls.has(fq.url)) continue;
+    const fqRes = Math.max(fq.width, fq.height);
+    // Only add fallback qualities that are higher resolution or if primary has no resolution info
+    if (fqRes > primaryMaxRes || primaryMaxRes === 0) {
+      merged.unshift(fq); // Add at start (higher quality)
+    }
+  }
+
+  return merged;
+}
+
+// ─── Slideshow extraction ───
+
 function extractSlideshowImages(itemInfo: any): string[] {
   const images: string[] = [];
 
-  // imagePost.images[] structure (common in __UNIVERSAL_DATA)
   const imagePost = itemInfo?.imagePost;
   if (imagePost?.images && Array.isArray(imagePost.images)) {
     for (const img of imagePost.images) {
@@ -226,7 +301,6 @@ function extractSlideshowImages(itemInfo: any): string[] {
     }
   }
 
-  // Alternative: imagePostInfo structure
   const imagePostInfo = itemInfo?.imagePostInfo;
   if (images.length === 0 && imagePostInfo?.images && Array.isArray(imagePostInfo.images)) {
     for (const img of imagePostInfo.images) {
@@ -235,7 +309,6 @@ function extractSlideshowImages(itemInfo: any): string[] {
     }
   }
 
-  // Alternative: sticker/photo structure
   if (images.length === 0 && itemInfo?.stickersOnItem) {
     for (const s of itemInfo.stickersOnItem) {
       const url = s?.stickerText?.[0] || '';
@@ -245,6 +318,8 @@ function extractSlideshowImages(itemInfo: any): string[] {
 
   return images;
 }
+
+// ─── Result builder ───
 
 function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) {
   const video = itemInfo?.video || parsedVideo || {};
@@ -280,6 +355,27 @@ function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) 
     cookieToken: encryptedCookies,
   };
 }
+
+// ─── Fetch with retry ───
+
+async function fetchWithRetry(url: string, headers: Record<string, string>, maxRetries = 2): Promise<Response> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const resp = await fetch(url, { headers, redirect: 'follow' });
+      if (resp.ok || resp.status < 500) return resp;
+      lastError = new Error(`HTTP ${resp.status}`);
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+    }
+    if (attempt < maxRetries) {
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+    }
+  }
+  throw lastError || new Error('Fetch failed after retries');
+}
+
+// ─── Main handler ───
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -327,11 +423,25 @@ Deno.serve(async (req) => {
       'Upgrade-Insecure-Requests': '1',
     };
 
-    const response = await fetch(url, { headers, redirect: 'follow' });
+    // Primary scrape with retry
+    let response: Response;
+    try {
+      response = await fetchWithRetry(url, headers);
+    } catch {
+      console.log('Primary scrape failed after retries, trying fallback APIs...');
+      const encryptedCookies = await encryptCookies('');
+      const fallbackResult = await fetchFromFallbackApis(url, encryptedCookies);
+      if (fallbackResult) {
+        return new Response(JSON.stringify(fallbackResult), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      }
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch video data. Please try again.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const setCookieHeaders = response.headers.getSetCookie?.() || [];
     const cookies = setCookieHeaders.map((c: string) => c.split(';')[0]).join('; ');
-
     let encryptedCookies = '';
     if (cookies) {
       encryptedCookies = await encryptCookies(cookies);
@@ -357,14 +467,11 @@ Deno.serve(async (req) => {
     const resolvedUrl = response.url || url;
 
     if (!scriptData) {
-      console.log('No embedded script data found, trying fallback API...');
-      const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
+      console.log('No embedded script data found, trying fallback APIs...');
+      const fallbackResult = await fetchFromFallbackApis(resolvedUrl, encryptedCookies);
       if (fallbackResult) {
         console.log('Successfully fetched via fallback API (no script data)');
-        return new Response(
-          JSON.stringify(fallbackResult),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        return new Response(JSON.stringify(fallbackResult), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
       return new Response(
         JSON.stringify({ error: 'Could not find video data. TikTok might be blocking the request.' }),
@@ -374,80 +481,63 @@ Deno.serve(async (req) => {
 
     const parsedData = JSON.parse(scriptData);
 
+    // Try extracting from primary data
+    let result: ReturnType<typeof buildResult> | null = null;
+
     const videoDetail = parsedData?.__DEFAULT_SCOPE__?.['webapp.video-detail'];
     if (videoDetail && videoDetail.statusCode === 0) {
       const itemInfo = videoDetail.itemInfo?.itemStruct;
       if (itemInfo) {
-        const result = buildResult(itemInfo, null, encryptedCookies);
-        if (result.qualities.length > 0) {
-          if (hasOnlyInternalBitrateVariants(itemInfo?.video)) {
-            console.log('Only internal bitrate variants found, trying fallback API...');
-            const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
-            if (fallbackResult) {
-              console.log('Using fallback API result for stable muxed download');
-              return new Response(
-                JSON.stringify(fallbackResult),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
-            }
-          }
-
-          console.log(`Extracted ${result.qualities.length} quality options`);
-          return new Response(
-            JSON.stringify(result),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        // Video found but no qualities (age-restricted/classified) — try fallback
-        console.log('Video data empty (possibly content-classified), trying fallback API...');
+        result = buildResult(itemInfo, null, encryptedCookies);
       }
     }
 
-    const itemModule = parsedData?.ItemModule;
-    if (itemModule) {
-      const firstKey = Object.keys(itemModule)[0];
-      if (firstKey) {
-        const item = itemModule[firstKey];
-        const authorModule = parsedData?.UserModule?.users?.[item?.author];
-        const itemWithAuthor = {
-          ...item,
-          author: {
-            uniqueId: item.author,
-            nickname: authorModule?.nickname || item.author,
-            avatarThumb: authorModule?.avatarThumb || '',
-          },
-        };
-        const result = buildResult(itemWithAuthor, item.video, encryptedCookies);
-        if (result.qualities.length > 0) {
-          if (hasOnlyInternalBitrateVariants(item?.video)) {
-            console.log('Only internal SIGI bitrate variants found, trying fallback API...');
-            const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
-            if (fallbackResult) {
-              console.log('Using fallback API result for stable muxed download (SIGI)');
-              return new Response(
-                JSON.stringify(fallbackResult),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              );
-            }
-          }
-
-          console.log(`Extracted ${result.qualities.length} quality options (SIGI)`);
-          return new Response(
-            JSON.stringify(result),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+    if (!result || result.qualities.length === 0) {
+      const itemModule = parsedData?.ItemModule;
+      if (itemModule) {
+        const firstKey = Object.keys(itemModule)[0];
+        if (firstKey) {
+          const item = itemModule[firstKey];
+          const authorModule = parsedData?.UserModule?.users?.[item?.author];
+          const itemWithAuthor = {
+            ...item,
+            author: {
+              uniqueId: item.author,
+              nickname: authorModule?.nickname || item.author,
+              avatarThumb: authorModule?.avatarThumb || '',
+            },
+          };
+          result = buildResult(itemWithAuthor, item.video, encryptedCookies);
         }
       }
     }
 
-    // Fallback: use external API for age-restricted or classified videos
-    const fallbackResult = await fetchFromFallbackApi(resolvedUrl, encryptedCookies);
+    // If primary extraction succeeded, try to enhance with fallback HD qualities
+    if (result && result.qualities.length > 0) {
+      // Fire fallback in parallel to try to get HD option
+      try {
+        const fallbackResult = await fetchFromFallbackApis(resolvedUrl, encryptedCookies);
+        if (fallbackResult && fallbackResult.qualities.length > 0) {
+          result.qualities = mergeQualities(result.qualities, fallbackResult.qualities);
+          // Update best URL if merged added a higher quality
+          if (result.qualities[0]?.url) {
+            result.video.url = result.qualities[0].url;
+          }
+        }
+      } catch (e) {
+        console.log('Fallback enhancement failed (non-critical):', e);
+      }
+
+      console.log(`Returning ${result.qualities.length} quality options`);
+      return new Response(JSON.stringify(result), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    // Primary failed entirely, use fallback
+    console.log('Primary extraction empty, trying fallback APIs...');
+    const fallbackResult = await fetchFromFallbackApis(resolvedUrl, encryptedCookies);
     if (fallbackResult) {
-      console.log('Successfully fetched via fallback API');
-      return new Response(
-        JSON.stringify(fallbackResult),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.log('Successfully fetched via fallback APIs');
+      return new Response(JSON.stringify(fallbackResult), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
     return new Response(

@@ -1,4 +1,5 @@
 import { Link, useLocation, Outlet } from "react-router-dom";
+import { Warp } from "@paper-design/shaders-react";
 
 const navLinks = [
   { to: "/", label: "Home" },
@@ -22,10 +23,27 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
 
   return (
     <div className="min-h-svh bg-background text-foreground flex flex-col">
-      {/* Background effects */}
+      {/* Warp shader background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-accent/5 rounded-full blur-[100px]" />
+        <Warp
+          style={{ height: "100%", width: "100%", opacity: 0.35 }}
+          proportion={0.45}
+          softness={1.2}
+          distortion={0.2}
+          swirl={0.6}
+          swirlIterations={8}
+          shape="checks"
+          shapeScale={0.08}
+          scale={1}
+          rotation={0}
+          speed={0.4}
+          colors={[
+            "hsl(240, 8%, 3%)",
+            "hsl(330, 100%, 30%)",
+            "hsl(175, 80%, 20%)",
+            "hsl(270, 60%, 15%)",
+          ]}
+        />
       </div>
 
       {/* Header */}

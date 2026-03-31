@@ -46,7 +46,7 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
           ]}
         />
         {/* Darken overlay to keep text readable */}
-        <div className="absolute inset-0 bg-background/50" />
+        <div className="absolute inset-0 bg-background/60" />
       </div>
 
       {/* Header */}

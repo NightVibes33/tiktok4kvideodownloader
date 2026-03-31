@@ -471,8 +471,7 @@ export default function TikTokDownloader() {
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
   const previewUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, false) : "";
   const downloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true) : "";
-  // Audio extraction not supported — don't show a fake audio download button
-  const audioDownloadUrl = undefined;
+  const audioDownloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true, true) : "";
 
   return (
     <div className="w-full max-w-xl mx-auto space-y-8 selection:bg-primary/30 selection:text-primary-foreground">

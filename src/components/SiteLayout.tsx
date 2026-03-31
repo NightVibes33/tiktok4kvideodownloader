@@ -36,12 +36,12 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
           shapeScale={0.1}
           scale={1.02}
           rotation={0}
-          speed={0.45}
+          speed={0.65}
           colors={[
-            "hsl(240, 8%, 6%)",
-            "hsl(240, 6%, 14%)",
+            "hsl(330, 80%, 15%)",
+            "hsl(330, 90%, 30%)",
             "hsl(330, 100%, 55%)",
-            "hsl(175, 100%, 45%)",
+            "hsl(335, 100%, 45%)",
           ]}
         />
       </div>

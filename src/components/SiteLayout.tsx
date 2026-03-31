@@ -22,9 +22,9 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
   const location = useLocation();
 
   return (
-    <div className="min-h-svh bg-background text-foreground flex flex-col">
-      {/* Warp shader background */}
-      <div className="fixed inset-0 -z-10 pointer-events-none">
+    <div className="min-h-svh text-foreground flex flex-col" style={{ backgroundColor: 'transparent' }}>
+      {/* Warp shader background — sits behind everything */}
+      <div className="fixed inset-0 z-0 pointer-events-none bg-background">
         <Warp
           style={{ width: "100vw", height: "100vh", opacity: 0.55 }}
           proportion={0.5}

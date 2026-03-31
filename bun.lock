@@ -6,6 +6,7 @@
       "name": "vite_react_shadcn_ts",
       "dependencies": {
         "@hookform/resolvers": "^3.10.0",
+        "@paper-design/shaders-react": "^0.0.72",
         "@radix-ui/react-accordion": "^1.2.11",
         "@radix-ui/react-alert-dialog": "^1.1.14",
         "@radix-ui/react-aspect-ratio": "^1.1.7",
@@ -202,6 +203,10 @@
     "@oxc-project/runtime": ["@oxc-project/runtime@0.115.0", "", {}, "sha512-Rg8Wlt5dCbXhQnsXPrkOjL1DTSvXLgb2R/KYfnf1/K+R0k6UMLEmbQXPM+kwrWqSmWA2t0B1EtHy2/3zikQpvQ=="],
 
     "@oxc-project/types": ["@oxc-project/types@0.115.0", "", {}, "sha512-4n91DKnebUS4yjUHl2g3/b2T+IUdCfmoZGhmwsovZCDaJSs+QkVAM+0AqqTxHSsHfeiMuueT75cZaZcT/m0pSw=="],
+
+    "@paper-design/shaders": ["@paper-design/shaders@0.0.72", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@paper-design/shaders/-/shaders-0.0.72.tgz", {}, "sha512-rk2BFuV5ood2DaivbxJC2jQMzaB434isDUzdUQ85Cy0OWnUMuxl8kyGMR74TDPyjo3EvcHIyreNLkJdRG+GfSA=="],
+
+    "@paper-design/shaders-react": ["@paper-design/shaders-react@0.0.72", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@paper-design/shaders-react/-/shaders-react-0.0.72.tgz", { "dependencies": { "@paper-design/shaders": "0.0.72" }, "peerDependencies": { "@types/react": "^18 || ^19", "react": "^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-q6KwquL93ZVNcuSM7pqzW0z/VLjnDVb/NSpYyGJBxf7MEHHCXx37E+zw/Px6RZLt3SGCUerIDDCGCMT385oW0w=="],
 
     "@playwright/test": ["@playwright/test@1.58.2", "", { "dependencies": { "playwright": "1.58.2" }, "bin": { "playwright": "cli.js" } }, "sha512-akea+6bHYBBfA9uQqSYmlJXn61cTa+jbO87xVLCWbTqbWadRVmhxlXATaOjOgcBaWU4ePo0wB41KMFv3o35IXA=="],
 

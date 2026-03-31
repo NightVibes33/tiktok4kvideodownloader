@@ -486,7 +486,7 @@ export default function TikTokDownloader() {
           </div>
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold text-heading tracking-tight">
-              TikTok <span className="text-gradient">Downloader</span>
+              TikTok <span style={{ color: "hsl(var(--background))" }}>Downloader</span>
             </h1>
             <p className="text-sm text-dim mt-2 flex items-center justify-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-accent" />

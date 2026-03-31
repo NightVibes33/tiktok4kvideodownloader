@@ -514,18 +514,20 @@ Deno.serve(async (req) => {
 
     // If primary extraction succeeded, try to enhance with fallback HD qualities
     if (result && result.qualities.length > 0) {
-      // Fire fallback in parallel to try to get HD option
-      try {
-        const fallbackResult = await fetchFromFallbackApis(resolvedUrl, encryptedCookies);
-        if (fallbackResult && fallbackResult.qualities.length > 0) {
-          result.qualities = mergeQualities(result.qualities, fallbackResult.qualities);
-          // Update best URL if merged added a higher quality
-          if (result.qualities[0]?.url) {
-            result.video.url = result.qualities[0].url;
+      // Only try fallback enhancement if primary has low resolution (< 720p)
+      const primaryMaxRes = result.qualities.reduce((max, q) => Math.max(max, q.width, q.height), 0);
+      if (primaryMaxRes < 720) {
+        try {
+          const fallbackResult = await fetchFromFallbackApis(resolvedUrl, encryptedCookies);
+          if (fallbackResult && fallbackResult.qualities.length > 0) {
+            result.qualities = mergeQualities(result.qualities, fallbackResult.qualities);
+            if (result.qualities[0]?.url) {
+              result.video.url = result.qualities[0].url;
+            }
           }
+        } catch (e) {
+          console.log('Fallback enhancement failed (non-critical):', e);
         }
-      } catch (e) {
-        console.log('Fallback enhancement failed (non-critical):', e);
       }
 
       console.log(`Returning ${result.qualities.length} quality options`);

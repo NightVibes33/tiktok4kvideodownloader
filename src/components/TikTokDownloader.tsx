@@ -481,6 +481,9 @@ export default function TikTokDownloader() {
             <img
               src={tiktokLogo}
               alt="TikTok Downloader"
+              loading="eager"
+              fetchPriority="high"
+              decoding="sync"
               className="w-16 h-16 rounded-2xl ring-2 ring-primary/20 shadow-lg shadow-primary/10"
             />
           </div>

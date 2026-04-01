@@ -39,11 +39,11 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
           speed={0.25}
           colors={[
             "hsl(330, 100%, 65%)",
-            "hsl(330, 90%, 60%)",
-            "hsl(340, 100%, 70%)",
-            "hsl(320, 80%, 55%)",
-            "hsl(350, 90%, 65%)",
-            "hsl(310, 70%, 60%)",
+            "hsl(330, 100%, 65%)",
+            "hsl(330, 100%, 65%)",
+            "hsl(330, 100%, 65%)",
+            "hsl(330, 100%, 65%)",
+            "hsl(330, 100%, 65%)",
           ]}
         />
       </div>

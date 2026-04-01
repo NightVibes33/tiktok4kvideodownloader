@@ -24,26 +24,26 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
   return (
     <div className="min-h-svh text-foreground flex flex-col relative">
       {/* Warp shader — fixed behind everything, using theme tokens */}
-      <div className="fixed inset-0 -z-10 pointer-events-none opacity-85 h-[100svh] w-screen overflow-hidden">
+      <div className="fixed inset-0 -z-10 pointer-events-none opacity-60 h-[100svh] w-screen overflow-hidden">
         <Warp
           style={{ width: "100%", height: "100%" }}
           proportion={0.5}
-          softness={2.0}
-          distortion={0.15}
-          swirl={0.4}
-          swirlIterations={12}
+          softness={3.0}
+          distortion={0.08}
+          swirl={0.25}
+          swirlIterations={14}
           shape="checks"
-          shapeScale={0.06}
-          scale={1.5}
+          shapeScale={0.04}
+          scale={2.0}
           rotation={0}
-          speed={0.35}
+          speed={0.25}
           colors={[
-            "hsl(185, 85%, 65%)",
-            "hsl(280, 70%, 65%)",
-            "hsl(330, 80%, 60%)",
-            "hsl(160, 75%, 55%)",
-            "hsl(220, 80%, 60%)",
-            "hsl(50, 80%, 60%)",
+            "hsl(185, 60%, 75%)",
+            "hsl(270, 50%, 72%)",
+            "hsl(330, 55%, 70%)",
+            "hsl(160, 50%, 68%)",
+            "hsl(210, 55%, 72%)",
+            "hsl(50, 50%, 72%)",
           ]}
         />
       </div>

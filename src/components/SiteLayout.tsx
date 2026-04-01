@@ -38,10 +38,13 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
           rotation={0}
           speed={0.65}
           colors={[
-            "hsl(330, 80%, 15%)",
-            "hsl(330, 90%, 30%)",
+            "hsl(300, 100%, 50%)",
+            "hsl(180, 100%, 50%)",
+            "hsl(270, 100%, 60%)",
+            "hsl(60, 100%, 50%)",
             "hsl(330, 100%, 55%)",
-            "hsl(335, 100%, 45%)",
+            "hsl(140, 100%, 45%)",
+            "hsl(200, 100%, 55%)",
           ]}
         />
       </div>

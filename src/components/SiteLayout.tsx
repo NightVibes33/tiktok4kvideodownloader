@@ -24,9 +24,9 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
   return (
     <div className="min-h-svh text-foreground flex flex-col relative">
       {/* Warp shader — fixed behind everything, using theme tokens */}
-      <div className="fixed inset-0 -z-10 pointer-events-none opacity-70">
+      <div className="fixed inset-0 -z-10 pointer-events-none opacity-70 h-[100svh] w-screen overflow-hidden">
         <Warp
-          style={{ width: "100vw", height: "100vh" }}
+          style={{ width: "100%", height: "100%" }}
           proportion={0.5}
           softness={1.1}
           distortion={0.22}

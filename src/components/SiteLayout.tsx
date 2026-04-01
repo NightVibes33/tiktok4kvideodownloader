@@ -24,7 +24,7 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
   return (
     <div className="min-h-svh text-foreground flex flex-col relative">
       {/* Warp shader — fixed behind everything, using theme tokens */}
-      <div className="fixed inset-0 -z-10 pointer-events-none opacity-80 h-[100svh] w-screen overflow-hidden">
+      <div className="fixed inset-0 -z-10 pointer-events-none opacity-60 h-[100svh] w-screen overflow-hidden">
         <Warp
           style={{ width: "100%", height: "100%" }}
           proportion={0.5}
@@ -38,14 +38,12 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
           rotation={0}
           speed={0.25}
           colors={[
-            "hsl(180, 100%, 50%)",
-            "hsl(270, 100%, 55%)",
-            "hsl(320, 100%, 55%)",
-            "hsl(130, 100%, 50%)",
-            "hsl(220, 100%, 60%)",
-            "hsl(55, 100%, 50%)",
-            "hsl(290, 100%, 60%)",
-            "hsl(195, 100%, 55%)",
+            "hsl(330, 100%, 65%)",
+            "hsl(330, 90%, 60%)",
+            "hsl(340, 100%, 70%)",
+            "hsl(320, 80%, 55%)",
+            "hsl(350, 90%, 65%)",
+            "hsl(310, 70%, 60%)",
           ]}
         />
       </div>

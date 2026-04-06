@@ -657,6 +657,10 @@ export default function TikTokDownloader() {
                           {activeQuality && activeQuality.width > 0 && activeQuality.height > 0
                             ? `${activeQuality.width}×${activeQuality.height}`
                             : 'no watermark'}
+                          {activeQuality && (() => {
+                            const size = estimateFileSize(activeQuality.bitrate, videoData.video.duration, activeQuality.width, activeQuality.height);
+                            return size ? ` · ${size}` : '';
+                          })()}
                         </span>
                       </div>
                     )}
@@ -666,6 +670,7 @@ export default function TikTokDownloader() {
                       selectedQuality={selectedQuality}
                       onSelect={setSelectedQuality}
                       fallbackLabel={videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
+                      duration={videoData.video.duration}
                     />
 
                     <DownloadActions

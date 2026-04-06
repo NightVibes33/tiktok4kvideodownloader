@@ -612,6 +612,26 @@ export default function TikTokDownloader() {
                   </div>
 
                   <div className="space-y-3">
+                    {qualityTier && (
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 ${
+                          qualityTier.label === '4K' || qualityTier.label === '1440p'
+                            ? 'bg-accent/15 text-accent ring-accent/30'
+                            : qualityTier.label === 'Full HD' || qualityTier.label === 'HD'
+                            ? 'bg-primary/15 text-primary ring-primary/30'
+                            : 'bg-secondary text-muted-foreground ring-border'
+                        }`}>
+                          <Shield className="w-3 h-3" />
+                          {qualityTier.label}
+                        </span>
+                        <span className="text-[10px] text-dim">
+                          {activeQuality && activeQuality.width > 0 && activeQuality.height > 0
+                            ? `${activeQuality.width}×${activeQuality.height}`
+                            : 'no watermark'}
+                        </span>
+                      </div>
+                    )}
+
                     <QualitySelector
                       qualities={qualities}
                       selectedQuality={selectedQuality}

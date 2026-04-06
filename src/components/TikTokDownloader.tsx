@@ -63,6 +63,27 @@ function getQualityTier(q: QualityOption | null): { label: string; color: string
   return null;
 }
 
+function estimateFileSize(bitrate: number, duration: number, width: number, height: number): string | null {
+  if (duration <= 0) return null;
+  if (bitrate > 0) {
+    const bytes = (bitrate / 8) * duration;
+    return formatBytes(bytes);
+  }
+  // Rough estimate based on resolution when bitrate is unknown
+  const maxDim = Math.max(width, height);
+  if (maxDim <= 0) return null;
+  const kbps = maxDim >= 2160 ? 12000 : maxDim >= 1080 ? 5000 : maxDim >= 720 ? 2500 : 1200;
+  const bytes = (kbps * 1000 / 8) * duration;
+  return `~${formatBytes(bytes)}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000_000) return (bytes / 1_000_000_000).toFixed(1) + ' GB';
+  if (bytes >= 1_000_000) return (bytes / 1_000_000).toFixed(1) + ' MB';
+  if (bytes >= 1_000) return (bytes / 1_000).toFixed(0) + ' KB';
+  return bytes + ' B';
+}
+
 function formatCount(num?: number): string {
   if (!num) return "0";
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M";
@@ -172,12 +193,22 @@ function QualitySelector({
   selectedQuality,
   onSelect,
   fallbackLabel,
+  duration,
 }: {
   qualities: QualityOption[];
   selectedQuality: number;
   onSelect: (i: number) => void;
   fallbackLabel: string;
+  duration: number;
 }) {
+  const formatOptionLabel = (q: QualityOption) => {
+    const parts = [q.label];
+    if (q.width > 0 && q.height > 0) parts.push(`${q.width}×${q.height}`);
+    const size = estimateFileSize(q.bitrate, duration, q.width, q.height);
+    if (size) parts.push(size);
+    return parts.join(' · ');
+  };
+
   if (qualities.length > 1) {
     return (
       <div className="relative">
@@ -192,9 +223,7 @@ function QualitySelector({
           >
             {qualities.map((q, i) => (
               <option key={i} value={i}>
-                {q.label}
-                {q.width > 0 && q.height > 0 ? ` — ${q.width}×${q.height}` : ""}
-                {q.bitrate > 0 ? ` · ${Math.round(q.bitrate / 1000)}kbps` : ""}
+                {formatOptionLabel(q)}
               </option>
             ))}
           </select>
@@ -208,7 +237,7 @@ function QualitySelector({
     <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-secondary text-xs tabular font-mono">
       <span className="text-dim uppercase tracking-wider">Quality</span>
       <span className="text-heading font-medium">
-        {qualities[0]?.label || fallbackLabel}
+        {formatOptionLabel(qualities[0]) || fallbackLabel}
       </span>
     </div>
   );
@@ -628,6 +657,10 @@ export default function TikTokDownloader() {
                           {activeQuality && activeQuality.width > 0 && activeQuality.height > 0
                             ? `${activeQuality.width}×${activeQuality.height}`
                             : 'no watermark'}
+                          {activeQuality && (() => {
+                            const size = estimateFileSize(activeQuality.bitrate, videoData.video.duration, activeQuality.width, activeQuality.height);
+                            return size ? ` · ${size}` : '';
+                          })()}
                         </span>
                       </div>
                     )}
@@ -637,6 +670,7 @@ export default function TikTokDownloader() {
                       selectedQuality={selectedQuality}
                       onSelect={setSelectedQuality}
                       fallbackLabel={videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
+                      duration={videoData.video.duration}
                     />
 
                     <DownloadActions

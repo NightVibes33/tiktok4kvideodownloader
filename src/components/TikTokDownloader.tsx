@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp, Music } from "lucide-react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp, Music, Shield } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
 import DownloadHistory from "./DownloadHistory";
@@ -47,6 +47,21 @@ interface VideoData {
 }
 
 /* ── Helpers ── */
+
+function getQualityTier(q: QualityOption | null): { label: string; color: string } | null {
+  if (!q) return null;
+  const maxDim = Math.max(q.width, q.height);
+  const lbl = q.label.toLowerCase();
+  if (maxDim >= 2160 || lbl.includes('4k')) return { label: '4K', color: 'text-accent' };
+  if (maxDim >= 1440 || lbl.includes('1440')) return { label: '1440p', color: 'text-accent' };
+  if (maxDim >= 1080 || lbl.includes('1080')) return { label: 'Full HD', color: 'text-primary' };
+  if (maxDim >= 720 || lbl.includes('720') || lbl.includes('hd quality')) return { label: 'HD', color: 'text-primary' };
+  if (maxDim >= 540 || lbl.includes('540')) return { label: 'SD', color: 'text-muted-foreground' };
+  if (maxDim > 0) return { label: `${maxDim}p`, color: 'text-muted-foreground' };
+  // Unknown resolution — check label hints
+  if (lbl.includes('best available')) return { label: 'Best', color: 'text-muted-foreground' };
+  return null;
+}
 
 function formatCount(num?: number): string {
   if (!num) return "0";
@@ -332,9 +347,6 @@ function DownloadActions({
       <p className="text-[10px] text-center text-dim uppercase tracking-widest font-mono">
         {qualityCount} quality option{qualityCount !== 1 ? "s" : ""} · no watermark
       </p>
-      <p className="text-xs text-center text-dim">
-        On iPhone, download prepares the file first so it can be saved or shared.
-      </p>
     </div>
   );
 }
@@ -469,6 +481,7 @@ export default function TikTokDownloader() {
 
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
+  const qualityTier = getQualityTier(activeQuality);
   const previewUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, false) : "";
   const downloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true) : "";
   const audioDownloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true, true) : "";

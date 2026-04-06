@@ -63,6 +63,27 @@ function getQualityTier(q: QualityOption | null): { label: string; color: string
   return null;
 }
 
+function estimateFileSize(bitrate: number, duration: number, width: number, height: number): string | null {
+  if (duration <= 0) return null;
+  if (bitrate > 0) {
+    const bytes = (bitrate / 8) * duration;
+    return formatBytes(bytes);
+  }
+  // Rough estimate based on resolution when bitrate is unknown
+  const maxDim = Math.max(width, height);
+  if (maxDim <= 0) return null;
+  const kbps = maxDim >= 2160 ? 12000 : maxDim >= 1080 ? 5000 : maxDim >= 720 ? 2500 : 1200;
+  const bytes = (kbps * 1000 / 8) * duration;
+  return `~${formatBytes(bytes)}`;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000_000) return (bytes / 1_000_000_000).toFixed(1) + ' GB';
+  if (bytes >= 1_000_000) return (bytes / 1_000_000).toFixed(1) + ' MB';
+  if (bytes >= 1_000) return (bytes / 1_000).toFixed(0) + ' KB';
+  return bytes + ' B';
+}
+
 function formatCount(num?: number): string {
   if (!num) return "0";
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M";

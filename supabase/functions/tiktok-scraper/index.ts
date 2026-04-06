@@ -47,6 +47,25 @@ interface QualityOption {
   watermark: boolean;
 }
 
+function inferResolutionFromLabel(label: string): number {
+  const lower = label.toLowerCase();
+  const explicit = lower.match(/(2160|1440|1080|720|540|480)p/);
+  if (explicit) return Number(explicit[1]);
+  if (lower.includes('4k') || lower.includes('2160')) return 2160;
+  if (lower.includes('1440')) return 1440;
+  if (lower.includes('1080') || lower.includes('full hd') || lower.includes('hd quality')) return 1080;
+  if (lower.includes('720')) return 720;
+  if (lower.includes('540')) return 540;
+  if (lower.includes('480')) return 480;
+  if (lower.includes('standard quality')) return 540;
+  if (lower.includes('best available')) return 720;
+  return 0;
+}
+
+function getQualityResolution(option: QualityOption): number {
+  return Math.max(option.width, option.height, inferResolutionFromLabel(option.label));
+}
+
 function resolutionLabel(maxDim: number): string {
   if (maxDim >= 2160) return '4K';
   if (maxDim >= 1440) return '1440p';
@@ -127,8 +146,8 @@ function extractQualities(video: any): QualityOption[] {
   }
 
   qualities.sort((a, b) => {
-    const resA = Math.max(a.width, a.height);
-    const resB = Math.max(b.width, b.height);
+    const resA = getQualityResolution(a);
+    const resB = getQualityResolution(b);
     if (resB !== resA) return resB - resA;
     return b.bitrate - a.bitrate;
   });
@@ -274,18 +293,24 @@ async function fetchFromFallbackApis(videoUrl: string, encryptedCookies: string)
 /** Merge fallback HD qualities into primary result if primary is missing HD */
 function mergeQualities(primary: QualityOption[], fallback: QualityOption[]): QualityOption[] {
   const primaryUrls = new Set(primary.map(q => q.url));
-  const primaryMaxRes = primary.reduce((max, q) => Math.max(max, q.width, q.height), 0);
+  const primaryMaxRes = primary.reduce((max, q) => Math.max(max, getQualityResolution(q)), 0);
   const merged = [...primary];
 
   for (const fq of fallback) {
     if (fq.watermark) continue;
     if (primaryUrls.has(fq.url)) continue;
-    const fqRes = Math.max(fq.width, fq.height);
-    // Only add fallback qualities that are higher resolution or if primary has no resolution info
-    if (fqRes > primaryMaxRes || primaryMaxRes === 0) {
-      merged.unshift(fq); // Add at start (higher quality)
+    const fqRes = getQualityResolution(fq);
+    if (fqRes > primaryMaxRes || (primaryMaxRes === 0 && fqRes > 0)) {
+      merged.push(fq);
     }
   }
+
+  merged.sort((a, b) => {
+    const resA = getQualityResolution(a);
+    const resB = getQualityResolution(b);
+    if (resB !== resA) return resB - resA;
+    return b.bitrate - a.bitrate;
+  });
 
   return merged;
 }
@@ -517,7 +542,7 @@ Deno.serve(async (req) => {
     // If primary extraction succeeded, try to enhance with fallback HD qualities
     if (result && result.qualities.length > 0) {
       // Always try fallback enhancement to get HD qualities if available
-      const primaryMaxRes = result.qualities.reduce((max, q) => Math.max(max, q.width, q.height), 0);
+      const primaryMaxRes = result.qualities.reduce((max, q) => Math.max(max, getQualityResolution(q)), 0);
       if (primaryMaxRes < 1080) {
         try {
           const fallbackResult = await fetchFromFallbackApis(resolvedUrl, encryptedCookies);

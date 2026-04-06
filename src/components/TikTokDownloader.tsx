@@ -193,12 +193,22 @@ function QualitySelector({
   selectedQuality,
   onSelect,
   fallbackLabel,
+  duration,
 }: {
   qualities: QualityOption[];
   selectedQuality: number;
   onSelect: (i: number) => void;
   fallbackLabel: string;
+  duration: number;
 }) {
+  const formatOptionLabel = (q: QualityOption) => {
+    const parts = [q.label];
+    if (q.width > 0 && q.height > 0) parts.push(`${q.width}×${q.height}`);
+    const size = estimateFileSize(q.bitrate, duration, q.width, q.height);
+    if (size) parts.push(size);
+    return parts.join(' · ');
+  };
+
   if (qualities.length > 1) {
     return (
       <div className="relative">
@@ -213,9 +223,7 @@ function QualitySelector({
           >
             {qualities.map((q, i) => (
               <option key={i} value={i}>
-                {q.label}
-                {q.width > 0 && q.height > 0 ? ` — ${q.width}×${q.height}` : ""}
-                {q.bitrate > 0 ? ` · ${Math.round(q.bitrate / 1000)}kbps` : ""}
+                {formatOptionLabel(q)}
               </option>
             ))}
           </select>
@@ -229,7 +237,7 @@ function QualitySelector({
     <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-secondary text-xs tabular font-mono">
       <span className="text-dim uppercase tracking-wider">Quality</span>
       <span className="text-heading font-medium">
-        {qualities[0]?.label || fallbackLabel}
+        {formatOptionLabel(qualities[0]) || fallbackLabel}
       </span>
     </div>
   );

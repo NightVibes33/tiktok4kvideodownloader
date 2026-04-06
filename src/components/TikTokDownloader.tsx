@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp, Music } from "lucide-react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp, Music, Shield } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
 import DownloadHistory from "./DownloadHistory";
@@ -47,6 +47,21 @@ interface VideoData {
 }
 
 /* ── Helpers ── */
+
+function getQualityTier(q: QualityOption | null): { label: string; color: string } | null {
+  if (!q) return null;
+  const maxDim = Math.max(q.width, q.height);
+  const lbl = q.label.toLowerCase();
+  if (maxDim >= 2160 || lbl.includes('4k')) return { label: '4K', color: 'text-accent' };
+  if (maxDim >= 1440 || lbl.includes('1440')) return { label: '1440p', color: 'text-accent' };
+  if (maxDim >= 1080 || lbl.includes('1080')) return { label: 'Full HD', color: 'text-primary' };
+  if (maxDim >= 720 || lbl.includes('720') || lbl.includes('hd quality')) return { label: 'HD', color: 'text-primary' };
+  if (maxDim >= 540 || lbl.includes('540')) return { label: 'SD', color: 'text-muted-foreground' };
+  if (maxDim > 0) return { label: `${maxDim}p`, color: 'text-muted-foreground' };
+  // Unknown resolution — check label hints
+  if (lbl.includes('best available')) return { label: 'Best', color: 'text-muted-foreground' };
+  return null;
+}
 
 function formatCount(num?: number): string {
   if (!num) return "0";
@@ -332,9 +347,6 @@ function DownloadActions({
       <p className="text-[10px] text-center text-dim uppercase tracking-widest font-mono">
         {qualityCount} quality option{qualityCount !== 1 ? "s" : ""} · no watermark
       </p>
-      <p className="text-xs text-center text-dim">
-        On iPhone, download prepares the file first so it can be saved or shared.
-      </p>
     </div>
   );
 }
@@ -469,6 +481,7 @@ export default function TikTokDownloader() {
 
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
+  const qualityTier = getQualityTier(activeQuality);
   const previewUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, false) : "";
   const downloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true) : "";
   const audioDownloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true, true) : "";
@@ -599,6 +612,26 @@ export default function TikTokDownloader() {
                   </div>
 
                   <div className="space-y-3">
+                    {qualityTier && (
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 ${
+                          qualityTier.label === '4K' || qualityTier.label === '1440p'
+                            ? 'bg-accent/15 text-accent ring-accent/30'
+                            : qualityTier.label === 'Full HD' || qualityTier.label === 'HD'
+                            ? 'bg-primary/15 text-primary ring-primary/30'
+                            : 'bg-secondary text-muted-foreground ring-border'
+                        }`}>
+                          <Shield className="w-3 h-3" />
+                          {qualityTier.label}
+                        </span>
+                        <span className="text-[10px] text-dim">
+                          {activeQuality && activeQuality.width > 0 && activeQuality.height > 0
+                            ? `${activeQuality.width}×${activeQuality.height}`
+                            : 'no watermark'}
+                        </span>
+                      </div>
+                    )}
+
                     <QualitySelector
                       qualities={qualities}
                       selectedQuality={selectedQuality}
@@ -623,7 +656,7 @@ export default function TikTokDownloader() {
         {!videoData && (
           <div className="grid grid-cols-3 gap-3">
             {[
-              { icon: "🎬", title: "HD Quality", desc: "Up to 4K" },
+              { icon: "🎬", title: "Best Quality", desc: "Up to source res" },
               { icon: "💨", title: "No Watermark", desc: "Clean videos" },
               { icon: "⚡", title: "Fast & Free", desc: "Instant save" },
             ].map((f) => (

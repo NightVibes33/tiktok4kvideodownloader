@@ -189,13 +189,25 @@ async function fetchFromTikwm(videoUrl: string, encryptedCookies: string): Promi
       }
     }
 
-    // Offer BOTH HD and compatible when available
+    // Offer BOTH HD and compatible when available, with honest labels
     if (d.hdplay) {
-      qualities.push({ label: 'HD quality (no watermark)', url: d.hdplay, width: d.hd_width || d.width || 0, height: d.hd_height || d.height || 0, bitrate: 0, watermark: false });
+      const hdW = d.hd_width || 0;
+      const hdH = d.hd_height || 0;
+      const hdMax = Math.max(hdW, hdH);
+      // Only label as "HD" if we can confirm resolution >= 720, otherwise use "Best available"
+      const hdLabel = hdMax >= 1080 ? `${resolutionLabel(hdMax)} (no watermark)`
+        : hdMax >= 720 ? `${resolutionLabel(hdMax)} (no watermark)`
+        : 'Best available (no watermark)';
+      qualities.push({ label: hdLabel, url: d.hdplay, width: hdW, height: hdH, bitrate: 0, watermark: false });
     }
     if (d.play) {
-      const playLabel = d.hdplay ? 'Standard quality (no watermark)' : 'Best available (no watermark)';
-      qualities.push({ label: playLabel, url: d.play, width: d.width || 0, height: d.height || 0, bitrate: 0, watermark: false });
+      const sdW = d.width || 0;
+      const sdH = d.height || 0;
+      const sdMax = Math.max(sdW, sdH);
+      const playLabel = d.hdplay
+        ? (sdMax > 0 ? `${resolutionLabel(sdMax)} (no watermark)` : 'Standard (no watermark)')
+        : (sdMax > 0 ? `${resolutionLabel(sdMax)} · no watermark` : 'Best available (no watermark)');
+      qualities.push({ label: playLabel, url: d.play, width: sdW, height: sdH, bitrate: 0, watermark: false });
     }
     if (d.wmplay) {
       qualities.push({ label: 'With watermark', url: d.wmplay, width: 0, height: 0, bitrate: 0, watermark: true });

@@ -93,9 +93,11 @@ function extractQualities(video: any): QualityOption[] {
       const h = br.PlayAddr?.Height || br.playAddr?.Height || br.Height || 0;
       const bitrate = br.Bitrate || br.bitrate || 0;
       const rawLabel = br.GearName || br.QualityType || br.qualityType || '';
-      // Only skip DASH adaptive segments (adapt_ prefix) which are video-only without muxed audio.
-      const isAdaptive = /^adapt_/i.test(rawLabel);
-      if (isAdaptive) continue;
+      const codec = (br.CodecType || br.codecType || '').toString().toLowerCase();
+
+      // Skip HEVC/bytevc1 streams (playback issues on many devices)
+      // but KEEP adapt_ H.264/AVC streams — they are muxed with audio and contain HD (1080p/4K)
+      if (codec.includes('bytevc1') || codec.includes('hevc') || codec.includes('h265') || codec.includes('h.265')) continue;
 
       const label = normalizeQualityLabel(rawLabel, w, h);
       const dedupeKey = `${label}:${w}x${h}`;
@@ -514,9 +516,9 @@ Deno.serve(async (req) => {
 
     // If primary extraction succeeded, try to enhance with fallback HD qualities
     if (result && result.qualities.length > 0) {
-      // Only try fallback enhancement if primary has low resolution (< 720p)
+      // Always try fallback enhancement to get HD qualities if available
       const primaryMaxRes = result.qualities.reduce((max, q) => Math.max(max, q.width, q.height), 0);
-      if (primaryMaxRes < 720) {
+      if (primaryMaxRes < 1080) {
         try {
           const fallbackResult = await fetchFromFallbackApis(resolvedUrl, encryptedCookies);
           if (fallbackResult && fallbackResult.qualities.length > 0) {

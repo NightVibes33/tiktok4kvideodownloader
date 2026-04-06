@@ -656,7 +656,7 @@ export default function TikTokDownloader() {
         {!videoData && (
           <div className="grid grid-cols-3 gap-3">
             {[
-              { icon: "🎬", title: "HD Quality", desc: "Up to 4K" },
+              { icon: "🎬", title: "Best Quality", desc: "Up to source res" },
               { icon: "💨", title: "No Watermark", desc: "Clean videos" },
               { icon: "⚡", title: "Fast & Free", desc: "Instant save" },
             ].map((f) => (

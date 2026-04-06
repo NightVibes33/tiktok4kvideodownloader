@@ -10,10 +10,10 @@ export default function WarpBackground() {
         <Warp
           style={{ width: "100%", height: "100%" }}
           colors={[
-            "hsl(330, 100%, 65%)",
-            "hsl(340, 80%, 45%)",
-            "hsl(330, 100%, 65%)",
-            "hsl(320, 90%, 55%)",
+            "hsl(330, 100%, 70%)",
+            "hsl(340, 100%, 58%)",
+            "hsl(325, 100%, 72%)",
+            "hsl(335, 100%, 62%)",
           ]}
           proportion={0.45}
           softness={1}

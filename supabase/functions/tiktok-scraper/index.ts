@@ -516,9 +516,9 @@ Deno.serve(async (req) => {
 
     // If primary extraction succeeded, try to enhance with fallback HD qualities
     if (result && result.qualities.length > 0) {
-      // Only try fallback enhancement if primary has low resolution (< 720p)
+      // Always try fallback enhancement to get HD qualities if available
       const primaryMaxRes = result.qualities.reduce((max, q) => Math.max(max, q.width, q.height), 0);
-      if (primaryMaxRes < 720) {
+      if (primaryMaxRes < 1080) {
         try {
           const fallbackResult = await fetchFromFallbackApis(resolvedUrl, encryptedCookies);
           if (fallbackResult && fallbackResult.qualities.length > 0) {

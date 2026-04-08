@@ -6,14 +6,20 @@ const navLinks = [
   { to: "/slideshow-downloader", label: "Slideshows" },
   { to: "/profile-analyzer", label: "Analyzer" },
   { to: "/how-to-download", label: "How To" },
-  { to: "/about", label: "About" },
+  { to: "/blog", label: "Blog" },
+  { to: "/faq", label: "FAQ" },
 ];
 
 const footerLinks = [
   { to: "/", label: "TikTok Downloader" },
   { to: "/how-to-download", label: "How to Download" },
+  { to: "/slideshow-downloader", label: "Slideshow Downloader" },
   { to: "/profile-analyzer", label: "Profile Analyzer" },
+  { to: "/supported-formats", label: "Supported Formats" },
+  { to: "/faq", label: "FAQ" },
+  { to: "/blog", label: "Blog & Guides" },
   { to: "/about", label: "About" },
+  { to: "/install", label: "Install on iPhone" },
   { to: "/privacy-policy", label: "Privacy Policy" },
   { to: "/terms", label: "Terms of Service" },
 ];

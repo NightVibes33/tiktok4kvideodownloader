@@ -13,6 +13,10 @@ import HowToDownload from "./pages/HowToDownload.tsx";
 import ProfileAnalyzer from "./pages/ProfileAnalyzer.tsx";
 import SlideshowDownloader from "./pages/SlideshowDownloader.tsx";
 import IOSShortcut from "./pages/IOSShortcut.tsx";
+import FAQ from "./pages/FAQ.tsx";
+import SupportedFormats from "./pages/SupportedFormats.tsx";
+import Blog from "./pages/Blog.tsx";
+import BlogPost from "./pages/BlogPost.tsx";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +36,10 @@ const App = () => (
             <Route path="/profile-analyzer" element={<ProfileAnalyzer />} />
             <Route path="/slideshow-downloader" element={<SlideshowDownloader />} />
             <Route path="/ios-shortcut" element={<IOSShortcut />} />
+            <Route path="/faq" element={<FAQ />} />
+            <Route path="/supported-formats" element={<SupportedFormats />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:slug" element={<BlogPost />} />
             
             <Route path="*" element={<NotFound />} />
           </Route>

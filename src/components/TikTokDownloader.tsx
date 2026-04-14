@@ -653,7 +653,11 @@ export default function TikTokDownloader() {
           <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
             <div className="surface-elevated rounded-2xl overflow-hidden">
               <div className="flex flex-col md:flex-row">
-                <VideoPreview cover={videoData.video.cover} streamUrl={previewUrl} />
+                {videoData.isSlideshow && videoData.images?.length > 0 ? (
+                  <SlideshowPreview images={videoData.images} />
+                ) : (
+                  <VideoPreview cover={videoData.video.cover} streamUrl={previewUrl} />
+                )}
 
                 <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between gap-4">
                   <div className="space-y-4">
@@ -679,44 +683,54 @@ export default function TikTokDownloader() {
                   </div>
 
                   <div className="space-y-3">
-                    {qualityTier && (
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 ${
-                          qualityTier.label === '4K' || qualityTier.label === '1440p'
-                            ? 'bg-accent/15 text-accent ring-accent/30'
-                            : qualityTier.label === 'Full HD' || qualityTier.label === 'HD'
-                            ? 'bg-primary/15 text-primary ring-primary/30'
-                            : 'bg-secondary text-muted-foreground ring-border'
-                        }`}>
-                          <Shield className="w-3 h-3" />
-                          {qualityTier.label}
-                        </span>
-                        <span className="text-[10px] text-dim">
-                          {activeQuality && activeQuality.width > 0 && activeQuality.height > 0
-                            ? `${activeQuality.width}×${activeQuality.height}`
-                            : 'no watermark'}
-                          {activeQuality && (() => {
-                            const size = estimateFileSize(activeQuality.bitrate, videoData.video.duration, activeQuality.width, activeQuality.height);
-                            return size ? ` · ${size}` : '';
-                          })()}
-                        </span>
-                      </div>
+                    {videoData.isSlideshow && videoData.images?.length > 0 ? (
+                      <SlideshowDownloadActions
+                        images={videoData.images}
+                        videoData={videoData}
+                        onDownload={onDownloadTriggered}
+                      />
+                    ) : (
+                      <>
+                        {qualityTier && (
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 ${
+                              qualityTier.label === '4K' || qualityTier.label === '1440p'
+                                ? 'bg-accent/15 text-accent ring-accent/30'
+                                : qualityTier.label === 'Full HD' || qualityTier.label === 'HD'
+                                ? 'bg-primary/15 text-primary ring-primary/30'
+                                : 'bg-secondary text-muted-foreground ring-border'
+                            }`}>
+                              <Shield className="w-3 h-3" />
+                              {qualityTier.label}
+                            </span>
+                            <span className="text-[10px] text-dim">
+                              {activeQuality && activeQuality.width > 0 && activeQuality.height > 0
+                                ? `${activeQuality.width}×${activeQuality.height}`
+                                : 'no watermark'}
+                              {activeQuality && (() => {
+                                const size = estimateFileSize(activeQuality.bitrate, videoData.video.duration, activeQuality.width, activeQuality.height);
+                                return size ? ` · ${size}` : '';
+                              })()}
+                            </span>
+                          </div>
+                        )}
+
+                        <QualitySelector
+                          qualities={qualities}
+                          selectedQuality={selectedQuality}
+                          onSelect={setSelectedQuality}
+                          fallbackLabel={videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
+                          duration={videoData.video.duration}
+                        />
+
+                        <DownloadActions
+                          downloadUrl={downloadUrl}
+                          audioDownloadUrl={audioDownloadUrl}
+                          qualityCount={qualities.length}
+                          onDownload={onDownloadTriggered}
+                        />
+                      </>
                     )}
-
-                    <QualitySelector
-                      qualities={qualities}
-                      selectedQuality={selectedQuality}
-                      onSelect={setSelectedQuality}
-                      fallbackLabel={videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
-                      duration={videoData.video.duration}
-                    />
-
-                    <DownloadActions
-                      downloadUrl={downloadUrl}
-                      audioDownloadUrl={audioDownloadUrl}
-                      qualityCount={qualities.length}
-                      onDownload={onDownloadTriggered}
-                    />
                   </div>
                 </div>
               </div>

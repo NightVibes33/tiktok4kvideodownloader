@@ -156,6 +156,41 @@ function VideoPreview({ cover, streamUrl }: { cover: string; streamUrl?: string 
   );
 }
 
+function SlideshowPreview({ images }: { images: string[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const prev = () => setCurrentIndex((i) => (i > 0 ? i - 1 : images.length - 1));
+  const next = () => setCurrentIndex((i) => (i < images.length - 1 ? i + 1 : 0));
+
+  return (
+    <div className="relative w-full md:w-52 aspect-[9/16] bg-secondary shrink-0 rounded-xl overflow-hidden group/slide">
+      <img
+        src={images[currentIndex]}
+        alt={`Slide ${currentIndex + 1}`}
+        className="w-full h-full object-cover transition-opacity duration-300"
+      />
+      {images.length > 1 && (
+        <>
+          <button onClick={prev} className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-background/70 flex items-center justify-center opacity-0 group-hover/slide:opacity-100 transition-opacity">
+            <ChevronLeft className="w-4 h-4 text-heading" />
+          </button>
+          <button onClick={next} className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-background/70 flex items-center justify-center opacity-0 group-hover/slide:opacity-100 transition-opacity">
+            <ChevronRight className="w-4 h-4 text-heading" />
+          </button>
+          <div className="absolute bottom-2 inset-x-0 flex justify-center gap-1">
+            {images.map((_, i) => (
+              <button key={i} onClick={() => setCurrentIndex(i)} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentIndex ? 'bg-primary w-3' : 'bg-foreground/40'}`} />
+            ))}
+          </div>
+        </>
+      )}
+      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-accent/90 text-accent-foreground text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+        <Image className="w-3 h-3" />
+        {images.length} photos
+      </div>
+    </div>
+  );
+
 function AuthorInfo({ author }: { author: VideoData["author"] }) {
   return (
     <div className="flex items-center gap-3">

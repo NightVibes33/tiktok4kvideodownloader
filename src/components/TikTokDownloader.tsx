@@ -418,6 +418,116 @@ function DownloadActions({
   );
 }
 
+function SlideshowDownloadActions({
+  images,
+  videoData,
+  onDownload,
+}: {
+  images: string[];
+  videoData: VideoData;
+  onDownload?: () => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadAll = useCallback(async () => {
+    if (downloading) return;
+    setDownloading(true);
+    onDownload?.();
+    try {
+      for (let i = 0; i < images.length; i++) {
+        const resp = await fetch(images[i]);
+        const blob = await resp.blob();
+        const ext = blob.type?.includes('png') ? 'png' : 'jpeg';
+        const file = new File([blob], `tiktok-${videoData.id}-${i + 1}.${ext}`, { type: blob.type || 'image/jpeg' });
+
+        if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: `TikTok Photo ${i + 1}` });
+          break;
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        }
+        if (i < images.length - 1) await new Promise(r => setTimeout(r, 300));
+      }
+    } catch {
+      window.open(images[0], '_blank');
+    } finally {
+      setDownloading(false);
+    }
+  }, [images, videoData.id, downloading, onDownload]);
+
+  const handleDownloadSingle = useCallback(async (imgUrl: string, index: number) => {
+    try {
+      const resp = await fetch(imgUrl);
+      const blob = await resp.blob();
+      const ext = blob.type?.includes('png') ? 'png' : 'jpeg';
+      const file = new File([blob], `tiktok-${videoData.id}-${index + 1}.${ext}`, { type: blob.type || 'image/jpeg' });
+
+      if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `TikTok Photo ${index + 1}` });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch {
+      window.open(imgUrl, '_blank');
+    }
+  }, [videoData.id]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 bg-accent/15 text-accent ring-accent/30">
+          <Image className="w-3 h-3" />
+          Live Photos
+        </span>
+        <span className="text-[10px] text-dim">{images.length} images</span>
+      </div>
+
+      <button
+        onClick={handleDownloadAll}
+        disabled={downloading}
+        className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground rounded-xl font-semibold transition-all ease-expo duration-200 glow-primary hover:shadow-[0_0_30px_hsl(var(--glow-primary)/0.4)]"
+      >
+        {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {downloading ? 'Downloading...' : `Download All ${images.length} Photos`}
+      </button>
+
+      <div className="grid grid-cols-4 gap-1.5">
+        {images.map((img, i) => (
+          <button
+            key={i}
+            onClick={() => handleDownloadSingle(img, i)}
+            className="relative aspect-square rounded-lg overflow-hidden ring-1 ring-border/50 hover:ring-primary/50 transition-all group/img"
+          >
+            <img src={img} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-background/0 group-hover/img:bg-background/50 flex items-center justify-center transition-all">
+              <Download className="w-4 h-4 text-primary opacity-0 group-hover/img:opacity-100 transition-opacity" />
+            </div>
+            <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-background/70 px-1 rounded text-heading">{i + 1}</span>
+          </button>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-center text-dim uppercase tracking-widest font-mono">
+        {images.length} photo{images.length !== 1 ? 's' : ''} · original quality
+      </p>
+    </div>
+  );
+}
+
 /* ── Main Component ── */
 
 // Module-level cache so the counter survives unmount/remount

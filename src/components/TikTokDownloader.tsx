@@ -37,6 +37,8 @@ interface VideoData {
     height: number;
   };
   qualities: QualityOption[];
+  images: string[];
+  isSlideshow: boolean;
   stats: {
     diggCount?: number;
     commentCount?: number;

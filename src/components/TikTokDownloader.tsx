@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp, Music, Shield } from "lucide-react";
+import { Download, Link2, Loader2, Play, Heart, MessageCircle, Share2, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, TrendingUp, Music, Shield, Image, ChevronLeft, ChevronRight } from "lucide-react";
 import AdBanner from "./AdBanner";
 import BuyMeCoffee from "./BuyMeCoffee";
 import DownloadHistory from "./DownloadHistory";
@@ -37,6 +37,8 @@ interface VideoData {
     height: number;
   };
   qualities: QualityOption[];
+  images: string[];
+  isSlideshow: boolean;
   stats: {
     diggCount?: number;
     commentCount?: number;
@@ -150,6 +152,42 @@ function VideoPreview({ cover, streamUrl }: { cover: string; streamUrl?: string 
           Unplayable — try another quality
         </div>
       )}
+    </div>
+  );
+}
+
+function SlideshowPreview({ images }: { images: string[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const prev = () => setCurrentIndex((i) => (i > 0 ? i - 1 : images.length - 1));
+  const next = () => setCurrentIndex((i) => (i < images.length - 1 ? i + 1 : 0));
+
+  return (
+    <div className="relative w-full md:w-52 aspect-[9/16] bg-secondary shrink-0 rounded-xl overflow-hidden group/slide">
+      <img
+        src={images[currentIndex]}
+        alt={`Slide ${currentIndex + 1}`}
+        className="w-full h-full object-cover transition-opacity duration-300"
+      />
+      {images.length > 1 && (
+        <>
+          <button onClick={prev} className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-background/70 flex items-center justify-center opacity-0 group-hover/slide:opacity-100 transition-opacity">
+            <ChevronLeft className="w-4 h-4 text-heading" />
+          </button>
+          <button onClick={next} className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-background/70 flex items-center justify-center opacity-0 group-hover/slide:opacity-100 transition-opacity">
+            <ChevronRight className="w-4 h-4 text-heading" />
+          </button>
+          <div className="absolute bottom-2 inset-x-0 flex justify-center gap-1">
+            {images.map((_, i) => (
+              <button key={i} onClick={() => setCurrentIndex(i)} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentIndex ? 'bg-primary w-3' : 'bg-foreground/40'}`} />
+            ))}
+          </div>
+        </>
+      )}
+      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-accent/90 text-accent-foreground text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+        <Image className="w-3 h-3" />
+        {images.length} photos
+      </div>
     </div>
   );
 }
@@ -375,6 +413,116 @@ function DownloadActions({
 
       <p className="text-[10px] text-center text-dim uppercase tracking-widest font-mono">
         {qualityCount} quality option{qualityCount !== 1 ? "s" : ""} · no watermark
+      </p>
+    </div>
+  );
+}
+
+function SlideshowDownloadActions({
+  images,
+  videoData,
+  onDownload,
+}: {
+  images: string[];
+  videoData: VideoData;
+  onDownload?: () => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadAll = useCallback(async () => {
+    if (downloading) return;
+    setDownloading(true);
+    onDownload?.();
+    try {
+      for (let i = 0; i < images.length; i++) {
+        const resp = await fetch(images[i]);
+        const blob = await resp.blob();
+        const ext = blob.type?.includes('png') ? 'png' : 'jpeg';
+        const file = new File([blob], `tiktok-${videoData.id}-${i + 1}.${ext}`, { type: blob.type || 'image/jpeg' });
+
+        if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file], title: `TikTok Photo ${i + 1}` });
+          break;
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        }
+        if (i < images.length - 1) await new Promise(r => setTimeout(r, 300));
+      }
+    } catch {
+      window.open(images[0], '_blank');
+    } finally {
+      setDownloading(false);
+    }
+  }, [images, videoData.id, downloading, onDownload]);
+
+  const handleDownloadSingle = useCallback(async (imgUrl: string, index: number) => {
+    try {
+      const resp = await fetch(imgUrl);
+      const blob = await resp.blob();
+      const ext = blob.type?.includes('png') ? 'png' : 'jpeg';
+      const file = new File([blob], `tiktok-${videoData.id}-${index + 1}.${ext}`, { type: blob.type || 'image/jpeg' });
+
+      if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: `TikTok Photo ${index + 1}` });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      }
+    } catch {
+      window.open(imgUrl, '_blank');
+    }
+  }, [videoData.id]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 bg-accent/15 text-accent ring-accent/30">
+          <Image className="w-3 h-3" />
+          Live Photos
+        </span>
+        <span className="text-[10px] text-dim">{images.length} images</span>
+      </div>
+
+      <button
+        onClick={handleDownloadAll}
+        disabled={downloading}
+        className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground rounded-xl font-semibold transition-all ease-expo duration-200 glow-primary hover:shadow-[0_0_30px_hsl(var(--glow-primary)/0.4)]"
+      >
+        {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+        {downloading ? 'Downloading...' : `Download All ${images.length} Photos`}
+      </button>
+
+      <div className="grid grid-cols-4 gap-1.5">
+        {images.map((img, i) => (
+          <button
+            key={i}
+            onClick={() => handleDownloadSingle(img, i)}
+            className="relative aspect-square rounded-lg overflow-hidden ring-1 ring-border/50 hover:ring-primary/50 transition-all group/img"
+          >
+            <img src={img} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-background/0 group-hover/img:bg-background/50 flex items-center justify-center transition-all">
+              <Download className="w-4 h-4 text-primary opacity-0 group-hover/img:opacity-100 transition-opacity" />
+            </div>
+            <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono bg-background/70 px-1 rounded text-heading">{i + 1}</span>
+          </button>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-center text-dim uppercase tracking-widest font-mono">
+        {images.length} photo{images.length !== 1 ? 's' : ''} · original quality
       </p>
     </div>
   );
@@ -615,7 +763,11 @@ export default function TikTokDownloader() {
           <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
             <div className="surface-elevated rounded-2xl overflow-hidden">
               <div className="flex flex-col md:flex-row">
-                <VideoPreview cover={videoData.video.cover} streamUrl={previewUrl} />
+                {videoData.isSlideshow && videoData.images?.length > 0 ? (
+                  <SlideshowPreview images={videoData.images} />
+                ) : (
+                  <VideoPreview cover={videoData.video.cover} streamUrl={previewUrl} />
+                )}
 
                 <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between gap-4">
                   <div className="space-y-4">
@@ -641,44 +793,54 @@ export default function TikTokDownloader() {
                   </div>
 
                   <div className="space-y-3">
-                    {qualityTier && (
-                      <div className="flex items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 ${
-                          qualityTier.label === '4K' || qualityTier.label === '1440p'
-                            ? 'bg-accent/15 text-accent ring-accent/30'
-                            : qualityTier.label === 'Full HD' || qualityTier.label === 'HD'
-                            ? 'bg-primary/15 text-primary ring-primary/30'
-                            : 'bg-secondary text-muted-foreground ring-border'
-                        }`}>
-                          <Shield className="w-3 h-3" />
-                          {qualityTier.label}
-                        </span>
-                        <span className="text-[10px] text-dim">
-                          {activeQuality && activeQuality.width > 0 && activeQuality.height > 0
-                            ? `${activeQuality.width}×${activeQuality.height}`
-                            : 'no watermark'}
-                          {activeQuality && (() => {
-                            const size = estimateFileSize(activeQuality.bitrate, videoData.video.duration, activeQuality.width, activeQuality.height);
-                            return size ? ` · ${size}` : '';
-                          })()}
-                        </span>
-                      </div>
+                    {videoData.isSlideshow && videoData.images?.length > 0 ? (
+                      <SlideshowDownloadActions
+                        images={videoData.images}
+                        videoData={videoData}
+                        onDownload={onDownloadTriggered}
+                      />
+                    ) : (
+                      <>
+                        {qualityTier && (
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 ${
+                              qualityTier.label === '4K' || qualityTier.label === '1440p'
+                                ? 'bg-accent/15 text-accent ring-accent/30'
+                                : qualityTier.label === 'Full HD' || qualityTier.label === 'HD'
+                                ? 'bg-primary/15 text-primary ring-primary/30'
+                                : 'bg-secondary text-muted-foreground ring-border'
+                            }`}>
+                              <Shield className="w-3 h-3" />
+                              {qualityTier.label}
+                            </span>
+                            <span className="text-[10px] text-dim">
+                              {activeQuality && activeQuality.width > 0 && activeQuality.height > 0
+                                ? `${activeQuality.width}×${activeQuality.height}`
+                                : 'no watermark'}
+                              {activeQuality && (() => {
+                                const size = estimateFileSize(activeQuality.bitrate, videoData.video.duration, activeQuality.width, activeQuality.height);
+                                return size ? ` · ${size}` : '';
+                              })()}
+                            </span>
+                          </div>
+                        )}
+
+                        <QualitySelector
+                          qualities={qualities}
+                          selectedQuality={selectedQuality}
+                          onSelect={setSelectedQuality}
+                          fallbackLabel={videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
+                          duration={videoData.video.duration}
+                        />
+
+                        <DownloadActions
+                          downloadUrl={downloadUrl}
+                          audioDownloadUrl={audioDownloadUrl}
+                          qualityCount={qualities.length}
+                          onDownload={onDownloadTriggered}
+                        />
+                      </>
                     )}
-
-                    <QualitySelector
-                      qualities={qualities}
-                      selectedQuality={selectedQuality}
-                      onSelect={setSelectedQuality}
-                      fallbackLabel={videoData.video.ratio || `${videoData.video.width}×${videoData.video.height}`}
-                      duration={videoData.video.duration}
-                    />
-
-                    <DownloadActions
-                      downloadUrl={downloadUrl}
-                      audioDownloadUrl={audioDownloadUrl}
-                      qualityCount={qualities.length}
-                      onDownload={onDownloadTriggered}
-                    />
                   </div>
                 </div>
               </div>
@@ -765,7 +927,7 @@ export default function TikTokDownloader() {
             { q: "Does it work on iPhone?", a: "Yes! On iOS the download button prepares the file first so you can save it to your camera roll via the share sheet, or share it directly through AirDrop, Messages, and other apps." },
             { q: "Why did my download fail?", a: "Some videos are private, region-locked, or have expired links. Try refreshing the extraction or check if the video is still public on TikTok. If the issue persists, the creator may have restricted downloads." },
             { q: "Do you store my downloaded videos?", a: "No. All videos are proxied in real-time directly from TikTok's servers to your device. We never store video content on our servers. Your recent download history is saved locally in your browser only." },
-            { q: "Can I download TikTok slideshows or photo posts?", a: "Currently, our tool supports standard TikTok video posts. Photo slideshows and live streams are not yet supported, but we're working on adding these features." },
+            { q: "Can I download TikTok slideshows or Live Photos?", a: "Yes! Our tool fully supports TikTok slideshow and Live Photo posts. Each image is displayed in a gallery preview and you can download all photos at once or individually in original quality." },
           ];
           const jsonLd = {
             "@context": "https://schema.org",

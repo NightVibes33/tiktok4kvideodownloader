@@ -927,7 +927,7 @@ export default function TikTokDownloader() {
             { q: "Does it work on iPhone?", a: "Yes! On iOS the download button prepares the file first so you can save it to your camera roll via the share sheet, or share it directly through AirDrop, Messages, and other apps." },
             { q: "Why did my download fail?", a: "Some videos are private, region-locked, or have expired links. Try refreshing the extraction or check if the video is still public on TikTok. If the issue persists, the creator may have restricted downloads." },
             { q: "Do you store my downloaded videos?", a: "No. All videos are proxied in real-time directly from TikTok's servers to your device. We never store video content on our servers. Your recent download history is saved locally in your browser only." },
-            { q: "Can I download TikTok slideshows or photo posts?", a: "Currently, our tool supports standard TikTok video posts. Photo slideshows and live streams are not yet supported, but we're working on adding these features." },
+            { q: "Can I download TikTok slideshows or Live Photos?", a: "Yes! Our tool fully supports TikTok slideshow and Live Photo posts. Each image is displayed in a gallery preview and you can download all photos at once or individually in original quality." },
           ];
           const jsonLd = {
             "@context": "https://schema.org",

@@ -190,6 +190,7 @@ function SlideshowPreview({ images }: { images: string[] }) {
       </div>
     </div>
   );
+}
 
 function AuthorInfo({ author }: { author: VideoData["author"] }) {
   return (

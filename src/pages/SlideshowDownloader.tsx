@@ -2,7 +2,13 @@ import { useState, useCallback, useRef } from "react";
 import { Link2, Loader2, Download, X, ClipboardPaste, Sparkles, Images, Play } from "lucide-react";
 import SEOHead from "@/components/SEOHead";
 import { supabase } from "@/integrations/supabase/client";
-import { downloadLivePhoto, shareLivePhotoOnIOS } from "@/lib/livePhoto";
+import {
+  canSaveLivePhotosNatively,
+  downloadImageFallback,
+  downloadLivePhoto,
+  shareImageFallbackOnIOS,
+  shareLivePhotoOnIOS,
+} from "@/lib/livePhoto";
 
 interface VideoData {
   url: string;
@@ -17,64 +23,56 @@ function isIOSDevice(): boolean {
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
-function SlideImageCard({ imgUrl, index, videoData }: { imgUrl: string; index: number; videoData: VideoData | null }) {
+function SlideImageCard({
+  imgUrl,
+  index,
+  videoData,
+  nativeLivePhotoAvailable,
+}: {
+  imgUrl: string;
+  index: number;
+  videoData: VideoData | null;
+  nativeLivePhotoAvailable: boolean;
+}) {
   const [saving, setSaving] = useState(false);
+  const canSaveLive = nativeLivePhotoAvailable && !!videoData?.url;
 
   const handleSave = useCallback(async () => {
     if (saving) return;
 
     if (!isIOSDevice()) {
-      // Desktop: open in new tab
       window.open(imgUrl, "_blank", "noopener,noreferrer");
       return;
     }
 
     setSaving(true);
     try {
-      // On iOS, try to download as Live Photo if video data is available
-      if (videoData?.url) {
-        try {
-          await shareLivePhotoOnIOS(
-            {
-              stillImageUrl: imgUrl,
-              videoUrl: videoData.url,
-              duration: videoData.duration,
-              width: videoData.width,
-              height: videoData.height,
-            },
-            `tiktok-slide-${index + 1}`
-          );
-          return;
-        } catch (livePhotoError) {
-          console.log('Live Photo share failed, falling back to image:', livePhotoError);
-        }
+      if (canSaveLive && videoData?.url) {
+        await shareLivePhotoOnIOS(
+          {
+            stillImageUrl: imgUrl,
+            videoUrl: videoData.url,
+            duration: videoData.duration,
+            width: videoData.width,
+            height: videoData.height,
+          },
+          `tiktok-slide-${index + 1}`
+        );
+        return;
       }
 
-      // Fallback to regular image download
-      const response = await fetch(imgUrl);
-      if (!response.ok) throw new Error("Failed to fetch image");
-
-      const blob = await response.blob();
-      const file = new File([blob], `tiktok-slide-${index + 1}.jpg`, { type: blob.type || "image/jpeg" });
-
-      if (navigator.share && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: `TikTok Slide ${index + 1}` });
-      } else {
-        const objectUrl = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = objectUrl;
-        a.download = `tiktok-slide-${index + 1}.jpg`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      await shareImageFallbackOnIOS(imgUrl, `tiktok-slide-${index + 1}`);
+    } catch (error) {
+      console.error("Slide save failed:", error);
+      try {
+        await downloadImageFallback(imgUrl, `tiktok-slide-${index + 1}`);
+      } catch {
+        window.open(imgUrl, "_blank", "noopener,noreferrer");
       }
-    } catch {
-      window.open(imgUrl, "_blank", "noopener,noreferrer");
     } finally {
       setSaving(false);
     }
-  }, [imgUrl, index, saving, videoData]);
+  }, [canSaveLive, imgUrl, index, saving, videoData]);
 
   return (
     <div className="relative rounded-xl overflow-hidden ring-1 ring-border/50 bg-secondary">
@@ -90,7 +88,7 @@ function SlideImageCard({ imgUrl, index, videoData }: { imgUrl: string; index: n
         className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-semibold shadow-lg transition-all duration-200"
       >
         {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-        {saving ? "Saving…" : "Save"}
+        {saving ? "Saving…" : canSaveLive ? "Save Live" : "Save"}
       </button>
     </div>
   );
@@ -104,6 +102,7 @@ export default function SlideshowDownloader() {
   const [videoData, setVideoData] = useState<VideoData | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const nativeLivePhotoAvailable = canSaveLivePhotosNatively();
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,11 +134,10 @@ export default function SlideshowDownloader() {
       }
 
       setImages(slideImages);
-      
-      // Store video data for Live Photo support
-      if (data?.video) {
+
+      if (data?.video?.url) {
         setVideoData({
-          url: data.video.url || '',
+          url: data.video.url,
           duration: data.video.duration || 0,
           width: data.video.width || 0,
           height: data.video.height || 0,
@@ -154,14 +152,14 @@ export default function SlideshowDownloader() {
 
   const handleDownloadAll = useCallback(async () => {
     if (downloadingAll || images.length === 0) return;
-    
+
     setDownloadingAll(true);
     try {
       for (let i = 0; i < images.length; i++) {
         const imgUrl = images[i];
-        
-        // On iOS, try to download as Live Photo if video data is available
-        if (isIOSDevice() && videoData?.url) {
+        const baseFilename = `tiktok-slide-${i + 1}`;
+
+        if (nativeLivePhotoAvailable && videoData?.url) {
           try {
             await downloadLivePhoto(
               {
@@ -171,49 +169,26 @@ export default function SlideshowDownloader() {
                 width: videoData.width,
                 height: videoData.height,
               },
-              `tiktok-slide-${i + 1}`
+              baseFilename
             );
-          } catch (livePhotoError) {
-            console.log('Live Photo download failed, falling back to image:', livePhotoError);
-            // Fallback to regular download
-            const response = await fetch(imgUrl);
-            const blob = await response.blob();
-            const ext = blob.type?.includes('png') ? 'png' : 'jpeg';
-            const objectUrl = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = objectUrl;
-            a.download = `tiktok-slide-${i + 1}.${ext}`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+          } catch (error) {
+            console.error("Live Photo save failed, falling back to image:", error);
+            await downloadImageFallback(imgUrl, baseFilename);
           }
         } else {
-          // Desktop or no video data: download as regular image
-          const response = await fetch(imgUrl);
-          const blob = await response.blob();
-          const ext = blob.type?.includes('png') ? 'png' : 'jpeg';
-          const objectUrl = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = objectUrl;
-          a.download = `tiktok-slide-${i + 1}.${ext}`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+          await downloadImageFallback(imgUrl, baseFilename);
         }
-        
-        // Delay between downloads
+
         if (i < images.length - 1) {
-          await new Promise(r => setTimeout(r, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
     } catch (err) {
-      console.error('Download all failed:', err);
+      console.error("Download all failed:", err);
     } finally {
       setDownloadingAll(false);
     }
-  }, [images, videoData, downloadingAll]);
+  }, [downloadingAll, images, nativeLivePhotoAvailable, videoData]);
 
   const handlePasteButton = useCallback(async () => {
     try {
@@ -222,7 +197,9 @@ export default function SlideshowDownloader() {
         setUrl(text.trim());
         inputRef.current?.focus();
       }
-    } catch { /* clipboard permission denied */ }
+    } catch {
+      /* clipboard permission denied */
+    }
   }, []);
 
   const handlePasteFromClipboard = useCallback(async () => {
@@ -232,7 +209,9 @@ export default function SlideshowDownloader() {
       if (text && /^https?:\/\/(www\.|vm\.|vt\.)?tiktok\.com\//i.test(text.trim())) {
         setUrl(text.trim());
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [url]);
 
   return (
@@ -243,7 +222,6 @@ export default function SlideshowDownloader() {
         path="/slideshow-downloader"
       />
       <div className="w-full max-w-xl mx-auto space-y-8 selection:bg-primary/30 selection:text-primary-foreground">
-        {/* Header */}
         <div className="space-y-4 text-center">
           <div className="flex justify-center">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 ring-2 ring-primary/20 shadow-lg shadow-primary/10 flex items-center justify-center">
@@ -261,7 +239,6 @@ export default function SlideshowDownloader() {
           </div>
         </div>
 
-        {/* Input */}
         <form onSubmit={handleFetch} className="relative group space-y-2">
           <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-primary/20 to-accent/20 blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-500" />
           <div className="relative">
@@ -286,7 +263,13 @@ export default function SlideshowDownloader() {
             {url && !loading && (
               <button
                 type="button"
-                onClick={() => { setUrl(""); setError(null); setImages([]); setVideoData(null); inputRef.current?.focus(); }}
+                onClick={() => {
+                  setUrl("");
+                  setError(null);
+                  setImages([]);
+                  setVideoData(null);
+                  inputRef.current?.focus();
+                }}
                 className="absolute right-[6.5rem] top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted-foreground hover:text-heading hover:bg-secondary transition-colors"
               >
                 <X className="w-3.5 h-3.5" />
@@ -319,14 +302,12 @@ export default function SlideshowDownloader() {
           )}
         </form>
 
-        {/* Error */}
         {error && (
           <div className="p-4 bg-destructive/10 ring-1 ring-destructive/20 rounded-2xl text-destructive text-sm">
             {error}
           </div>
         )}
 
-        {/* Results */}
         {images.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -343,28 +324,46 @@ export default function SlideshowDownloader() {
                 ) : (
                   <Download className="w-4 h-4" />
                 )}
-                {downloadingAll ? "Downloading…" : "Download All"}
+                {downloadingAll
+                  ? "Downloading…"
+                  : nativeLivePhotoAvailable && videoData?.url
+                    ? "Download All Live"
+                    : "Download All"}
               </button>
             </div>
-            
-            {isIOSDevice() && videoData?.url && (
+
+            {isIOSDevice() && videoData?.url && nativeLivePhotoAvailable && (
               <div className="p-3 bg-accent/10 ring-1 ring-accent/20 rounded-xl">
                 <p className="text-xs text-accent flex items-center gap-2">
                   <Play className="w-3.5 h-3.5" />
-                  Live Photo support enabled — tap Save to download as Live Photo on iOS
+                  Live Photo support enabled in the slideshow tab — tap Save Live to import into Photos
                 </p>
               </div>
             )}
-            
+
+            {isIOSDevice() && videoData?.url && !nativeLivePhotoAvailable && (
+              <div className="p-3 bg-secondary/70 ring-1 ring-border rounded-xl">
+                <p className="text-xs text-dim flex items-center gap-2">
+                  <Play className="w-3.5 h-3.5" />
+                  Browser mode can save the slideshow photos, but native Live Photo import requires the iOS app build.
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               {images.map((imgUrl, i) => (
-                <SlideImageCard key={i} imgUrl={imgUrl} index={i} videoData={videoData} />
+                <SlideImageCard
+                  key={i}
+                  imgUrl={imgUrl}
+                  index={i}
+                  videoData={videoData}
+                  nativeLivePhotoAvailable={nativeLivePhotoAvailable}
+                />
               ))}
             </div>
           </div>
         )}
 
-        {/* Features */}
         {images.length === 0 && !error && (
           <div className="grid grid-cols-3 gap-3">
             {[

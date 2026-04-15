@@ -1,5 +1,3 @@
-// iOS Live Photo handler - Creates proper HEIF+MOV bundles recognized by iOS Photos
-
 interface LivePhotoAssets {
   stillImageUrl: string;
   videoUrl: string;
@@ -8,96 +6,121 @@ interface LivePhotoAssets {
   height: number;
 }
 
-/**
- * Creates a proper iOS Live Photo by pairing still image with video
- */
-export async function createLivePhotoBundle(assets: LivePhotoAssets): Promise<{ imageBlob: Blob; videoBlob: Blob }> {
-  const [imageResponse, videoResponse] = await Promise.all([
-    fetch(assets.stillImageUrl),
-    fetch(assets.videoUrl)
-  ]);
-
-  if (!imageResponse.ok || !videoResponse.ok) {
-    throw new Error('Failed to fetch Live Photo assets');
-  }
-
-  const imageBlob = await imageResponse.blob();
-  const videoBlob = await videoResponse.blob();
-
-  return { imageBlob, videoBlob };
+interface NativeLivePhotoPlugin {
+  saveLivePhoto(options: {
+    stillImageUrl: string;
+    videoUrl: string;
+    filenameBase: string;
+  }): Promise<{ success?: boolean; identifier?: string }>;
 }
 
-/**
- * Downloads Live Photo as paired JPEG + MOV files
- * Both files must share the same base filename for iOS to recognize them
- */
+type CapacitorWindow = Window & {
+  Capacitor?: {
+    Plugins?: {
+      LivePhotoPlugin?: NativeLivePhotoPlugin;
+    };
+    getPlatform?: () => string;
+    isNativePlatform?: () => boolean;
+  };
+};
+
+function getNativeLivePhotoPlugin(): NativeLivePhotoPlugin | null {
+  if (typeof window === "undefined") return null;
+
+  const capacitor = (window as CapacitorWindow).Capacitor;
+  if (!capacitor) return null;
+
+  const platform = typeof capacitor.getPlatform === "function"
+    ? capacitor.getPlatform()
+    : undefined;
+  const isNative = typeof capacitor.isNativePlatform === "function"
+    ? capacitor.isNativePlatform()
+    : platform !== undefined && platform !== "web";
+
+  if (!isNative || platform !== "ios") return null;
+
+  return capacitor.Plugins?.LivePhotoPlugin ?? null;
+}
+
+function getImageExtension(blob: Blob): string {
+  if (blob.type.includes("png")) return "png";
+  if (blob.type.includes("webp")) return "webp";
+  return "jpg";
+}
+
+async function fetchImageFile(imageUrl: string, baseFilename: string): Promise<File> {
+  const response = await fetch(imageUrl);
+  if (!response.ok) throw new Error("Failed to fetch image");
+
+  const blob = await response.blob();
+  const extension = getImageExtension(blob);
+
+  return new File([blob], `${baseFilename}.${extension}`, {
+    type: blob.type || "image/jpeg",
+  });
+}
+
+export function canSaveLivePhotosNatively(): boolean {
+  return !!getNativeLivePhotoPlugin()?.saveLivePhoto;
+}
+
+export async function downloadImageFallback(imageUrl: string, baseFilename: string): Promise<void> {
+  const file = await fetchImageFile(imageUrl, baseFilename);
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  }
+}
+
+export async function shareImageFallbackOnIOS(imageUrl: string, baseFilename: string): Promise<void> {
+  const file = await fetchImageFile(imageUrl, baseFilename);
+
+  if (navigator.share && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: baseFilename,
+    });
+    return;
+  }
+
+  await downloadImageFallback(imageUrl, baseFilename);
+}
+
 export async function downloadLivePhoto(
   assets: LivePhotoAssets,
-  baseFilename: string
+  baseFilename: string,
 ): Promise<void> {
-  try {
-    const { imageBlob, videoBlob } = await createLivePhotoBundle(assets);
-
-    // Save JPEG still image
-    const imageFile = new File([imageBlob], `${baseFilename}.jpg`, { type: 'image/jpeg' });
-    const imageUrl = URL.createObjectURL(imageBlob);
-    const imageLink = document.createElement('a');
-    imageLink.href = imageUrl;
-    imageLink.download = imageFile.name;
-    document.body.appendChild(imageLink);
-    imageLink.click();
-    document.body.removeChild(imageLink);
-    setTimeout(() => URL.revokeObjectURL(imageUrl), 5000);
-
-    // Slight delay before saving video
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Save MOV video file
-    const videoFile = new File([videoBlob], `${baseFilename}.mov`, { type: 'video/quicktime' });
-    const videoUrl = URL.createObjectURL(videoBlob);
-    const videoLink = document.createElement('a');
-    videoLink.href = videoUrl;
-    videoLink.download = videoFile.name;
-    document.body.appendChild(videoLink);
-    videoLink.click();
-    document.body.removeChild(videoLink);
-    setTimeout(() => URL.revokeObjectURL(videoUrl), 5000);
-  } catch (error) {
-    console.error('Failed to download Live Photo:', error);
-    throw error;
+  const plugin = getNativeLivePhotoPlugin();
+  if (!plugin?.saveLivePhoto) {
+    throw new Error("Native Live Photo save is unavailable in this context.");
   }
+
+  await plugin.saveLivePhoto({
+    stillImageUrl: assets.stillImageUrl,
+    videoUrl: assets.videoUrl,
+    filenameBase: baseFilename,
+  });
 }
 
-/**
- * For iOS devices, shares Live Photo files via native share sheet
- */
 export async function shareLivePhotoOnIOS(
   assets: LivePhotoAssets,
-  title: string
+  title: string,
 ): Promise<void> {
-  try {
-    const { imageBlob, videoBlob } = await createLivePhotoBundle(assets);
-
-    const imageFile = new File([imageBlob], 'image.jpg', { type: 'image/jpeg' });
-    const videoFile = new File([videoBlob], 'image.mov', { type: 'video/quicktime' });
-
-    if (navigator.share && navigator.canShare?.({ files: [imageFile, videoFile] })) {
-      await navigator.share({
-        files: [imageFile, videoFile],
-        title: title,
-      });
-    } else {
-      // Fallback to download
-      await downloadLivePhoto(assets, title);
-    }
-  } catch (error) {
-    console.error('Failed to share Live Photo:', error);
-    throw error;
-  }
+  await downloadLivePhoto(assets, title);
 }
 
 export default {
-  createLivePhotoBundle,
+  canSaveLivePhotosNatively,
+  downloadImageFallback,
   downloadLivePhoto,
+  shareImageFallbackOnIOS,
   shareLivePhotoOnIOS,
 };

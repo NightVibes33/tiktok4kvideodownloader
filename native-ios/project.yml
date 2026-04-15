@@ -11,6 +11,8 @@ targets:
     deploymentTarget: "16.0"
     sources:
       - TikTok4KNative
+    resources:
+      - TikTok4KNative/Assets.xcassets
     info:
       path: TikTok4KNative/Info.plist
       properties:

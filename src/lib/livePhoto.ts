@@ -1,45 +1,11 @@
+import { isNativeIOSApp, saveNativeLivePhoto } from "./livePhotoNative";
+
 interface LivePhotoAssets {
   stillImageUrl: string;
   videoUrl: string;
   duration: number;
   width: number;
   height: number;
-}
-
-interface NativeLivePhotoPlugin {
-  saveLivePhoto(options: {
-    stillImageUrl: string;
-    videoUrl: string;
-    filenameBase: string;
-  }): Promise<{ success?: boolean; identifier?: string }>;
-}
-
-type CapacitorWindow = Window & {
-  Capacitor?: {
-    Plugins?: {
-      LivePhotoPlugin?: NativeLivePhotoPlugin;
-    };
-    getPlatform?: () => string;
-    isNativePlatform?: () => boolean;
-  };
-};
-
-function getNativeLivePhotoPlugin(): NativeLivePhotoPlugin | null {
-  if (typeof window === "undefined") return null;
-
-  const capacitor = (window as CapacitorWindow).Capacitor;
-  if (!capacitor) return null;
-
-  const platform = typeof capacitor.getPlatform === "function"
-    ? capacitor.getPlatform()
-    : undefined;
-  const isNative = typeof capacitor.isNativePlatform === "function"
-    ? capacitor.isNativePlatform()
-    : platform !== undefined && platform !== "web";
-
-  if (!isNative || platform !== "ios") return null;
-
-  return capacitor.Plugins?.LivePhotoPlugin ?? null;
 }
 
 function getImageExtension(blob: Blob): string {
@@ -61,7 +27,7 @@ async function fetchImageFile(imageUrl: string, baseFilename: string): Promise<F
 }
 
 export function canSaveLivePhotosNatively(): boolean {
-  return !!getNativeLivePhotoPlugin()?.saveLivePhoto;
+  return isNativeIOSApp();
 }
 
 export async function downloadImageFallback(imageUrl: string, baseFilename: string): Promise<void> {
@@ -98,12 +64,7 @@ export async function downloadLivePhoto(
   assets: LivePhotoAssets,
   baseFilename: string,
 ): Promise<void> {
-  const plugin = getNativeLivePhotoPlugin();
-  if (!plugin?.saveLivePhoto) {
-    throw new Error("Native Live Photo save is unavailable in this context.");
-  }
-
-  await plugin.saveLivePhoto({
+  await saveNativeLivePhoto({
     stillImageUrl: assets.stillImageUrl,
     videoUrl: assets.videoUrl,
     filenameBase: baseFilename,

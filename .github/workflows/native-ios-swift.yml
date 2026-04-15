@@ -24,15 +24,15 @@ jobs:
           cd native-ios
           xcodegen generate
 
-      - name: Archive native app
+      - name: Build native app
         run: |
           xcodebuild \
             -project native-ios/TikTok4KNative.xcodeproj \
             -scheme TikTok4KNative \
             -configuration Release \
             -destination generic/platform=iOS \
-            -archivePath "$RUNNER_TEMP/TikTok4KNative.xcarchive" \
-            archive \
+            -derivedDataPath "$RUNNER_TEMP/TikTok4KNativeDerivedData" \
+            build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY=""
@@ -41,7 +41,7 @@ jobs:
         run: |
           rm -rf Payload
           mkdir -p Payload
-          cp -R "$RUNNER_TEMP/TikTok4KNative.xcarchive/Products/Applications/TikTok4KNative.app" Payload/TikTok4KNative.app
+          cp -R "$RUNNER_TEMP/TikTok4KNativeDerivedData/Build/Products/Release-iphoneos/TikTok4KNative.app" Payload/TikTok4KNative.app
           cd Payload/..
           /usr/bin/zip -qry TikTok4KNative-unsigned.ipa Payload
 

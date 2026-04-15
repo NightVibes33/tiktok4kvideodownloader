@@ -27,52 +27,63 @@ function SlideImageCard({
   imgUrl,
   index,
   videoData,
+  livePhotoCapable,
   nativeLivePhotoAvailable,
 }: {
   imgUrl: string;
   index: number;
   videoData: VideoData | null;
+  livePhotoCapable: boolean;
   nativeLivePhotoAvailable: boolean;
 }) {
-  const [saving, setSaving] = useState(false);
-  const canSaveLive = nativeLivePhotoAvailable && !!videoData?.url;
+  const [saveMode, setSaveMode] = useState<"idle" | "photo" | "live">("idle");
+  const canSaveLive = nativeLivePhotoAvailable && livePhotoCapable && !!videoData?.url;
+  const busy = saveMode !== "idle";
 
-  const handleSave = useCallback(async () => {
-    if (saving) return;
+  const handleSavePhoto = useCallback(async () => {
+    if (busy) return;
 
     if (!isIOSDevice()) {
       window.open(imgUrl, "_blank", "noopener,noreferrer");
       return;
     }
 
-    setSaving(true);
+    setSaveMode("photo");
     try {
-      if (canSaveLive && videoData?.url) {
-        await shareLivePhotoOnIOS(
-          {
-            stillImageUrl: imgUrl,
-            videoUrl: videoData.url,
-            duration: videoData.duration,
-            width: videoData.width,
-            height: videoData.height,
-          },
-          `tiktok-slide-${index + 1}`
-        );
-        return;
-      }
-
       await shareImageFallbackOnIOS(imgUrl, `tiktok-slide-${index + 1}`);
     } catch (error) {
-      console.error("Slide save failed:", error);
+      console.error("Photo save failed:", error);
       try {
         await downloadImageFallback(imgUrl, `tiktok-slide-${index + 1}`);
       } catch {
         window.open(imgUrl, "_blank", "noopener,noreferrer");
       }
     } finally {
-      setSaving(false);
+      setSaveMode("idle");
     }
-  }, [canSaveLive, imgUrl, index, saving, videoData]);
+  }, [busy, imgUrl, index]);
+
+  const handleSaveLive = useCallback(async () => {
+    if (busy || !canSaveLive || !videoData?.url) return;
+
+    setSaveMode("live");
+    try {
+      await shareLivePhotoOnIOS(
+        {
+          stillImageUrl: imgUrl,
+          videoUrl: videoData.url,
+          duration: videoData.duration,
+          width: videoData.width,
+          height: videoData.height,
+        },
+        `tiktok-slide-${index + 1}`
+      );
+    } catch (error) {
+      console.error("Live Photo save failed:", error);
+    } finally {
+      setSaveMode("idle");
+    }
+  }, [busy, canSaveLive, imgUrl, index, videoData]);
 
   return (
     <div className="relative rounded-xl overflow-hidden ring-1 ring-border/50 bg-secondary">
@@ -82,14 +93,26 @@ function SlideImageCard({
         className="w-full aspect-square object-cover"
         loading="lazy"
       />
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-semibold shadow-lg transition-all duration-200"
-      >
-        {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-        {saving ? "Saving…" : canSaveLive ? "Save Live" : "Save"}
-      </button>
+      <div className="absolute bottom-2 right-2 flex items-center gap-2">
+        <button
+          onClick={handleSavePhoto}
+          disabled={busy}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-semibold shadow-lg transition-all duration-200 disabled:opacity-70"
+        >
+          {saveMode === "photo" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          {saveMode === "photo" ? "Saving…" : "Save"}
+        </button>
+        {canSaveLive && (
+          <button
+            onClick={handleSaveLive}
+            disabled={busy}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-accent-foreground rounded-lg text-xs font-semibold shadow-lg transition-all duration-200 disabled:opacity-70"
+          >
+            {saveMode === "live" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+            {saveMode === "live" ? "Saving Live…" : "Save Live"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -100,7 +123,9 @@ export default function SlideshowDownloader() {
   const [error, setError] = useState<string | null>(null);
   const [images, setImages] = useState<string[]>([]);
   const [videoData, setVideoData] = useState<VideoData | null>(null);
-  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [livePhotoCapable, setLivePhotoCapable] = useState(false);
+  const [downloadingAllPhotos, setDownloadingAllPhotos] = useState(false);
+  const [downloadingAllLive, setDownloadingAllLive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const nativeLivePhotoAvailable = canSaveLivePhotosNatively();
 
@@ -118,6 +143,7 @@ export default function SlideshowDownloader() {
     setError(null);
     setImages([]);
     setVideoData(null);
+    setLivePhotoCapable(false);
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke("tiktok-scraper", {
@@ -143,6 +169,8 @@ export default function SlideshowDownloader() {
           height: data.video.height || 0,
         });
       }
+
+      setLivePhotoCapable(Boolean(data?.livePhotoCapable ?? data?.video?.url));
     } catch (err: any) {
       setError(err.message || "Failed to extract slideshow data");
     } finally {
@@ -150,45 +178,59 @@ export default function SlideshowDownloader() {
     }
   };
 
-  const handleDownloadAll = useCallback(async () => {
-    if (downloadingAll || images.length === 0) return;
+  const handleDownloadAllPhotos = useCallback(async () => {
+    if (downloadingAllPhotos || images.length === 0) return;
 
-    setDownloadingAll(true);
+    setDownloadingAllPhotos(true);
     try {
       for (let i = 0; i < images.length; i++) {
         const imgUrl = images[i];
         const baseFilename = `tiktok-slide-${i + 1}`;
-
-        if (nativeLivePhotoAvailable && videoData?.url) {
-          try {
-            await downloadLivePhoto(
-              {
-                stillImageUrl: imgUrl,
-                videoUrl: videoData.url,
-                duration: videoData.duration,
-                width: videoData.width,
-                height: videoData.height,
-              },
-              baseFilename
-            );
-          } catch (error) {
-            console.error("Live Photo save failed, falling back to image:", error);
-            await downloadImageFallback(imgUrl, baseFilename);
-          }
-        } else {
-          await downloadImageFallback(imgUrl, baseFilename);
-        }
+        await downloadImageFallback(imgUrl, baseFilename);
 
         if (i < images.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 500));
         }
       }
     } catch (err) {
-      console.error("Download all failed:", err);
+      console.error("Download all photos failed:", err);
     } finally {
-      setDownloadingAll(false);
+      setDownloadingAllPhotos(false);
     }
-  }, [downloadingAll, images, nativeLivePhotoAvailable, videoData]);
+  }, [downloadingAllPhotos, images]);
+
+  const handleDownloadAllLive = useCallback(async () => {
+    if (downloadingAllLive || images.length === 0 || !nativeLivePhotoAvailable || !livePhotoCapable || !videoData?.url) {
+      return;
+    }
+
+    setDownloadingAllLive(true);
+    try {
+      for (let i = 0; i < images.length; i++) {
+        const imgUrl = images[i];
+        const baseFilename = `tiktok-slide-${i + 1}`;
+
+        await downloadLivePhoto(
+          {
+            stillImageUrl: imgUrl,
+            videoUrl: videoData.url,
+            duration: videoData.duration,
+            width: videoData.width,
+            height: videoData.height,
+          },
+          baseFilename
+        );
+
+        if (i < images.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+    } catch (err) {
+      console.error("Download all Live Photos failed:", err);
+    } finally {
+      setDownloadingAllLive(false);
+    }
+  }, [downloadingAllLive, images, livePhotoCapable, nativeLivePhotoAvailable, videoData]);
 
   const handlePasteButton = useCallback(async () => {
     try {
@@ -234,7 +276,7 @@ export default function SlideshowDownloader() {
             </h1>
             <p className="text-sm text-dim mt-2 flex items-center justify-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-accent" />
-              Paste a slideshow link · Save all photos in HD
+              Paste a slideshow link · Save photos in HD · Optional Live Photo on iOS
             </p>
           </div>
         </div>
@@ -268,6 +310,7 @@ export default function SlideshowDownloader() {
                   setError(null);
                   setImages([]);
                   setVideoData(null);
+                  setLivePhotoCapable(false);
                   inputRef.current?.focus();
                 }}
                 className="absolute right-[6.5rem] top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted-foreground hover:text-heading hover:bg-secondary transition-colors"
@@ -310,42 +353,54 @@ export default function SlideshowDownloader() {
 
         {images.length > 0 && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-dim font-mono uppercase tracking-wider">
                 {images.length} photo{images.length !== 1 ? "s" : ""} found
               </p>
-              <button
-                onClick={handleDownloadAll}
-                disabled={downloadingAll}
-                className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground rounded-xl text-sm font-semibold transition-all duration-200"
-              >
-                {downloadingAll ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={handleDownloadAllPhotos}
+                  disabled={downloadingAllPhotos || downloadingAllLive}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground rounded-xl text-sm font-semibold transition-all duration-200"
+                >
+                  {downloadingAllPhotos ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  {downloadingAllPhotos ? "Downloading Photos…" : "Download All Photos"}
+                </button>
+                {nativeLivePhotoAvailable && livePhotoCapable && videoData?.url && (
+                  <button
+                    onClick={handleDownloadAllLive}
+                    disabled={downloadingAllLive || downloadingAllPhotos}
+                    className="flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/85 disabled:bg-secondary text-accent-foreground disabled:text-muted-foreground rounded-xl text-sm font-semibold transition-all duration-200"
+                  >
+                    {downloadingAllLive ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Play className="w-4 h-4" />
+                    )}
+                    {downloadingAllLive ? "Downloading Live…" : "Download All Live"}
+                  </button>
                 )}
-                {downloadingAll
-                  ? "Downloading…"
-                  : nativeLivePhotoAvailable && videoData?.url
-                    ? "Download All Live"
-                    : "Download All"}
-              </button>
+              </div>
             </div>
 
-            {isIOSDevice() && videoData?.url && nativeLivePhotoAvailable && (
+            {isIOSDevice() && livePhotoCapable && nativeLivePhotoAvailable && videoData?.url && (
               <div className="p-3 bg-accent/10 ring-1 ring-accent/20 rounded-xl">
                 <p className="text-xs text-accent flex items-center gap-2">
                   <Play className="w-3.5 h-3.5" />
-                  Live Photo support enabled in the slideshow tab — tap Save Live to import into Photos
+                  This slideshow supports both normal photo saves and Live Photo saves in the slideshow tab.
                 </p>
               </div>
             )}
 
-            {isIOSDevice() && videoData?.url && !nativeLivePhotoAvailable && (
+            {isIOSDevice() && livePhotoCapable && !nativeLivePhotoAvailable && (
               <div className="p-3 bg-secondary/70 ring-1 ring-border rounded-xl">
                 <p className="text-xs text-dim flex items-center gap-2">
                   <Play className="w-3.5 h-3.5" />
-                  Browser mode can save the slideshow photos, but native Live Photo import requires the iOS app build.
+                  This slideshow can still save normal photos here. Live Photo save appears in the iOS app build.
                 </p>
               </div>
             )}
@@ -357,6 +412,7 @@ export default function SlideshowDownloader() {
                   imgUrl={imgUrl}
                   index={i}
                   videoData={videoData}
+                  livePhotoCapable={livePhotoCapable}
                   nativeLivePhotoAvailable={nativeLivePhotoAvailable}
                 />
               ))}

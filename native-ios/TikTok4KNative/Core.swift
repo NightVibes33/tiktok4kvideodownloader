@@ -5,7 +5,7 @@ import SwiftUI
 struct AppConfig {
     static let appName = "TikTok 4K"
     static let supabaseURL = URL(string: "https://ejqqrsxnxunfnmjwtrcp.supabase.co")!
-    static let publishableKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqcXFyc3hueHVuZm5tand0cmNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NjM2NDgsImV4cCI6MjA4OTMzOTY0OH0.U9dzZwSZNc9dks9eRp-zAihHnc8-ucFg3Dbskt4Cco4"
+    static let publishableKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxqcXJzeHhueHVuZm5tand0cmNwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NjM2NDgsImV4cCI6MjA4OTMzOTY0OH0.U9dzZwSZNc9dks9eRp-zAihHnc8-ucFg3Dbskt4Cco4"
 }
 
 struct ScraperVideo: Codable, Hashable {
@@ -51,7 +51,7 @@ struct EdgeFunctionClient {
         request.httpBody = try JSONSerialization.data(withJSONObject: ["url": url])
 
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+        guard let http = response as/? HTTPURLResponse, (200...299).contains(http.statusCode) else {
             throw NativeAppError.invalidResponse
         }
         let decoded = try JSONDecoder().decode(ScraperResponse.self, from: data)
@@ -64,7 +64,7 @@ enum PhotoLibrarySaver {
     static func requestAddOnlyAuthorization() async throws {
         let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
         if status == .authorized || status == .limited { return }
-        let newStatus = await withCheckedContinuation { continuation in
+        let newStatus: PHAuthorizationStatus = await withCheckedContinuation { (continuation: CheckedContinuation<PHAuthorizationStatus, Never>) in
             PHPhotoLibrary.requestAuthorization(for: .addOnly) { continuation.resume(returning: $0) }
         }
         guard newStatus == .authorized || newStatus == .limited else {
@@ -84,7 +84,7 @@ enum PhotoLibrarySaver {
     static func saveImage(from remoteString: String) async throws {
         try await requestAddOnlyAuthorization()
         let imageURL = try await downloadTempFile(from: remoteString, suggestedExtension: "jpg")
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             PHPhotoLibrary.shared().performChanges({
                 let request = PHAssetCreationRequest.forAsset()
                 request.addResource(with: .photo, fileURL: imageURL, options: nil)
@@ -100,7 +100,7 @@ enum PhotoLibrarySaver {
         try await requestAddOnlyAuthorization()
         let imageURL = try await downloadTempFile(from: imageRemoteString, suggestedExtension: "jpg")
         let videoURL = try await downloadTempFile(from: videoRemoteString, suggestedExtension: "mov")
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             PHPhotoLibrary.shared().performChanges({
                 let request = PHAssetCreationRequest.forAsset()
                 request.addResource(with: .photo, fileURL: imageURL, options: nil)

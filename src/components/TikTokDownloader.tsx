@@ -6,6 +6,7 @@ import BuyMeCoffee from "./BuyMeCoffee";
 import DownloadHistory from "./DownloadHistory";
 import { supabase } from "@/integrations/supabase/client";
 import { useDownloadHistory } from "@/hooks/use-download-history";
+import { downloadLivePhoto, shareLivePhotoOnIOS } from "@/lib/livePhoto";
 import tiktokLogo from "@/assets/tiktok-logo-optimized.webp";
 
 /* ── Types ── */
@@ -434,16 +435,42 @@ function SlideshowDownloadActions({
     setDownloading(true);
     onDownload?.();
     try {
+      // For Live Photos, we need to download image and video pairs
       for (let i = 0; i < images.length; i++) {
         const resp = await fetch(images[i]);
         const blob = await resp.blob();
         const ext = blob.type?.includes('png') ? 'png' : 'jpeg';
-        const file = new File([blob], `tiktok-${videoData.id}-${i + 1}.${ext}`, { type: blob.type || 'image/jpeg' });
 
-        if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ files: [file], title: `TikTok Photo ${i + 1}` });
-          break;
+        // Create base filename for Live Photo pairing
+        const baseFilename = `tiktok-${videoData.id}-${i + 1}`;
+        const file = new File([blob], `${baseFilename}.${ext}`, { type: blob.type || 'image/jpeg' });
+
+        if (isIOSDevice()) {
+          // On iOS, use Live Photo download which pairs image + video
+          try {
+            await shareLivePhotoOnIOS(
+              {
+                stillImageUrl: images[i],
+                videoUrl: videoData.video.url, // Use the video URL from videoData
+                duration: videoData.video.duration,
+                width: videoData.video.width,
+                height: videoData.video.height,
+              },
+              baseFilename
+            );
+          } catch {
+            // Fallback to single image download
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 60_000);
+          }
         } else {
+          // Desktop: just download the images
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
@@ -460,16 +487,41 @@ function SlideshowDownloadActions({
     } finally {
       setDownloading(false);
     }
-  }, [images, videoData.id, downloading, onDownload]);
+  }, [images, videoData, downloading, onDownload]);
 
   const handleDownloadSingle = useCallback(async (imgUrl: string, index: number) => {
     try {
       const resp = await fetch(imgUrl);
       const blob = await resp.blob();
       const ext = blob.type?.includes('png') ? 'png' : 'jpeg';
-      const file = new File([blob], `tiktok-${videoData.id}-${index + 1}.${ext}`, { type: blob.type || 'image/jpeg' });
+      const baseFilename = `tiktok-${videoData.id}-${index + 1}`;
+      const file = new File([blob], `${baseFilename}.${ext}`, { type: blob.type || 'image/jpeg' });
 
-      if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
+      if (isIOSDevice()) {
+        // On iOS, use Live Photo download which pairs image + video
+        try {
+          await shareLivePhotoOnIOS(
+            {
+              stillImageUrl: imgUrl,
+              videoUrl: videoData.video.url,
+              duration: videoData.video.duration,
+              width: videoData.video.width,
+              height: videoData.video.height,
+            },
+            baseFilename
+          );
+        } catch {
+          // Fallback to single image download
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = file.name;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        }
+      } else if (navigator.share && navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], title: `TikTok Photo ${index + 1}` });
       } else {
         const url = URL.createObjectURL(blob);
@@ -484,7 +536,7 @@ function SlideshowDownloadActions({
     } catch {
       window.open(imgUrl, '_blank');
     }
-  }, [videoData.id]);
+  }, [videoData]);
 
   return (
     <div className="space-y-3">

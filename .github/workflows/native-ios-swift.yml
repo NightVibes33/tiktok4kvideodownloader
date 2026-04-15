@@ -1,0 +1,46 @@
+name: Native iOS SwiftUI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-native-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          cd native-ios
+          xcodegen generate
+
+      - name: Archive native app
+        run: |
+          xcodebuild \
+            -project native-ios/TikTok4KNative.xcodeproj \
+            -scheme TikTok4KNative \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            -archivePath "$RUNNER_TEMP/TikTok4KNative.xcarchive" \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package unsigned IPA
+        run: |
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$RUNNER_TEMP/TikTok4KNative.xcarchive/Products/Applications/TikTok4KNative.app" Payload/TikTok4KNative.app
+          cd Payload/..
+          /usr/bin/zip -qry TikTok4KNative-unsigned.ipa Payload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-ios-swift-unsigned-ipa
+          path: TikTok4KNative-unsigned.ipa

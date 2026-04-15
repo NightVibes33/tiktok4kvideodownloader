@@ -1,0 +1,74 @@
+name: iOS CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app
+        run: npm run build
+
+      - name: Prepare iOS shell
+        run: |
+          if [ -d ios/App/App ] && [ ! -d ios/App/App.xcodeproj ] && [ ! -d ios/App/App.xcworkspace ]; then
+            mkdir -p "$RUNNER_TEMP/ios-backup"
+            cp -R ios/App/App "$RUNNER_TEMP/ios-backup/App"
+            rm -rf ios/App
+          fi
+          if [ ! -d ios/App/App.xcodeproj ] && [ ! -d ios/App/App.xcworkspace ]; then
+            npx cap add ios
+          fi
+          if [ -d "$RUNNER_TEMP/ios-backup/App" ]; then
+            cp -R "$RUNNER_TEMP/ios-backup/App/." ios/App/App/
+          fi
+          npm run cap:sync
+
+      - name: Add Photos permissions
+        run: |
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string Save TikTok slideshow photos and Live Photos to your library." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryAddUsageDescription Save TikTok slideshow photos and Live Photos to your library." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string Save TikTok slideshow photos and Live Photos to your library." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSPhotoLibraryUsageDescription Save TikTok slideshow photos and Live Photos to your library." "$PLIST"
+
+      - name: Archive app
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            -archivePath "$RUNNER_TEMP/TikTok4KDownloader.xcarchive" \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""
+
+      - name: Package artifact
+        run: |
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "$RUNNER_TEMP/TikTok4KDownloader.xcarchive/Products/Applications/App.app" Payload/App.app
+          cd Payload/..
+          /usr/bin/zip -qry TikTok4KDownloader-unsigned.ipa Payload
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-ipa
+          path: TikTok4KDownloader-unsigned.ipa

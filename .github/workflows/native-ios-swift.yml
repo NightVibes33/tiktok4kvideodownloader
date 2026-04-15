@@ -2,6 +2,9 @@ name: REAL Native iOS SwiftUI IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build-native-ios:

@@ -1,4 +1,4 @@
-name: iOS CI With Icon
+name: LEGACY Capacitor Web Wrapper IPA With Icon
 
 on:
   workflow_dispatch:

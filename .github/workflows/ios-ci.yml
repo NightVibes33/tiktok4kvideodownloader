@@ -1,10 +1,7 @@
-name: iOS CI
+name: LEGACY Capacitor Web Wrapper IPA
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   build-ios:

@@ -1,4 +1,4 @@
-name: Native iOS SwiftUI
+name: REAL Native iOS SwiftUI IPA
 
 on:
   workflow_dispatch:

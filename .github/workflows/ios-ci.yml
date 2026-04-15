@@ -27,10 +27,10 @@ jobs:
 
       - name: Prepare iOS shell
         run: |
+          mkdir -p "$RUNNER_TEMP/ios-backup"
           if [ -d ios/App/App ] && [ ! -d ios/App/App.xcodeproj ] && [ ! -d ios/App/App.xcworkspace ]; then
-            mkdir -p "$RUNNER_TEMP/ios-backup"
             cp -R ios/App/App "$RUNNER_TEMP/ios-backup/App"
-            rm -rf ios/App
+            rm -rf ios
           fi
           if [ ! -d ios/App/App.xcodeproj ] && [ ! -d ios/App/App.xcworkspace ]; then
             npx cap add ios

@@ -11,6 +11,9 @@ struct RootTabView: View {
 
             NativeSlideshowDownloaderView()
                 .tabItem { Label("Slideshows", systemImage: "photo.on.rectangle.angled") }
+
+            NativeSettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }
         .tint(.pink)
     }
@@ -39,6 +42,7 @@ struct NativeHomeView: View {
                         FeatureCard(icon: "play.rectangle.fill", title: "Video Downloader", subtitle: "Native screen using the same backend flow.")
                         FeatureCard(icon: "photo.on.rectangle.angled", title: "Slideshow Downloader", subtitle: "Native photo save plus Live Photo save in the same app.")
                         FeatureCard(icon: "icloud.and.arrow.down", title: "Shared Backend", subtitle: "Lovable, Vercel, and IPA all stay linked through Supabase.")
+                        FeatureCard(icon: "gearshape.fill", title: "Native Settings", subtitle: "App details, capabilities, and future device-specific controls.")
                     }
                 }
                 .padding()

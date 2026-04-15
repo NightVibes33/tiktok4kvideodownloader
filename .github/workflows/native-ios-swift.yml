@@ -13,6 +13,9 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Prepare native app icon assets
+        run: bash native-ios/apply_icon.sh
+
       - name: Generate Xcode project
         run: |
           cd native-ios

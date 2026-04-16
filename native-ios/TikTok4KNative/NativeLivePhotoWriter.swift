@@ -1,13 +1,13 @@
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
 import Foundation
 import Photos
 
 enum NativeLivePhotoWriter {
-    static func appendSamples(from output: AVAssetReaderOutput, to input: AVAssetWriterInput) throws {
+    static func appendSamples(from output: AVAssetReaderOutput, to input: AVAssetWriterInput, writer: AVAssetWriter) throws {
         while let sampleBuffer = output.copyNextSampleBuffer() {
             guard input.append(sampleBuffer) else {
-                throw NativeSlideshowSaveError.writerFailed(input.error?.localizedDescription ?? "The writer could not append media samples.")
+                throw NativeSlideshowSaveError.writerFailed(writer.error?.localizedDescription ?? "The writer could not append media samples.")
             }
         }
         input.markAsFinished()
@@ -33,6 +33,7 @@ enum NativeLivePhotoWriter {
         guard let videoTrack = try await asset.loadTracks(withMediaType: .video).first else {
             throw NativeSlideshowSaveError.missingVideoTrack
         }
+        let videoFormatDescriptions = try await videoTrack.load(.formatDescriptions)
 
         let reader = try AVAssetReader(asset: asset)
         let videoOutput = AVAssetReaderTrackOutput(track: videoTrack, outputSettings: nil)
@@ -43,7 +44,9 @@ enum NativeLivePhotoWriter {
         reader.add(videoOutput)
 
         var audioOutput: AVAssetReaderTrackOutput?
+        var audioFormatDescriptions: [Any] = []
         if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first {
+            audioFormatDescriptions = try await audioTrack.load(.formatDescriptions)
             let possibleAudioOutput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: nil)
             possibleAudioOutput.alwaysCopiesSampleData = false
             if reader.canAdd(possibleAudioOutput) {
@@ -62,7 +65,11 @@ enum NativeLivePhotoWriter {
         let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
         writer.metadata = [NativeLivePhotoMetadata.contentIdentifierMetadataItem(for: assetIdentifier)]
 
-        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: nil, sourceFormatHint: videoTrack.formatDescriptions.first as? CMFormatDescription)
+        let videoInput = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: nil,
+            sourceFormatHint: videoFormatDescriptions.first as! CMFormatDescription
+        )
         videoInput.expectsMediaDataInRealTime = false
         guard writer.canAdd(videoInput) else {
             throw NativeSlideshowSaveError.writerFailed("The writer could not add the video input.")
@@ -70,8 +77,12 @@ enum NativeLivePhotoWriter {
         writer.add(videoInput)
 
         var audioInput: AVAssetWriterInput?
-        if let audioTrack = try await asset.loadTracks(withMediaType: .audio).first {
-            let possibleAudioInput = AVAssetWriterInput(mediaType: .audio, outputSettings: nil, sourceFormatHint: audioTrack.formatDescriptions.first as? CMFormatDescription)
+        if !audioFormatDescriptions.isEmpty {
+            let possibleAudioInput = AVAssetWriterInput(
+                mediaType: .audio,
+                outputSettings: nil,
+                sourceFormatHint: audioFormatDescriptions.first as! CMFormatDescription
+            )
             possibleAudioInput.expectsMediaDataInRealTime = false
             if writer.canAdd(possibleAudioInput) {
                 writer.add(possibleAudioInput)
@@ -93,9 +104,9 @@ enum NativeLivePhotoWriter {
         }
 
         writer.startSession(atSourceTime: .zero)
-        try appendSamples(from: videoOutput, to: videoInput)
+        try appendSamples(from: videoOutput, to: videoInput, writer: writer)
         if let audioOutput, let audioInput {
-            try appendSamples(from: audioOutput, to: audioInput)
+            try appendSamples(from: audioOutput, to: audioInput, writer: writer)
         }
 
         let metadataGroup = AVTimedMetadataGroup(

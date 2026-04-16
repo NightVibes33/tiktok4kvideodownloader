@@ -31,6 +31,18 @@ jobs:
             build \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Inspect built app bundle
+        run: |
+          APP_DIR="native-ios/build/Build/Products/Release-iphoneos/TikTok4KNative.app"
+          test -d "$APP_DIR"
+          echo "== APP DIRECTORY =="
+          ls -lah "$APP_DIR"
+          echo "== APP SIZE =="
+          du -sh "$APP_DIR"
+          echo "== APP BINARY =="
+          ls -lah "$APP_DIR/TikTok4KNative"
+          file "$APP_DIR/TikTok4KNative"
+
       - name: Package IPA
         run: |
           rm -rf Payload TikTok4KNative-v2.ipa

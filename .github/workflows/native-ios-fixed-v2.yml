@@ -1,0 +1,45 @@
+name: REAL Native iOS SwiftUI IPA (Fixed v2)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: |
+          cd native-ios
+          xcodegen generate --spec project-fixed.yml
+
+      - name: Build app
+        run: |
+          cd native-ios
+          xcodebuild \
+            -scheme TikTok4KNative \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            build \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package IPA
+        run: |
+          rm -rf Payload TikTok4KNative-v2.ipa
+          mkdir Payload
+          cp -R native-ios/build/Build/Products/Release-iphoneos/TikTok4KNative.app Payload/
+          zip -r TikTok4KNative-v2.ipa Payload
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: TikTok4KNative-Fixed-v2
+          path: TikTok4KNative-v2.ipa

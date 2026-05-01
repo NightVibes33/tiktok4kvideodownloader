@@ -1095,7 +1095,13 @@ export default function TikTokDownloader() {
                   </div>
 
                   <div className="space-y-3">
-                    {videoData.isSlideshow && videoData.images?.length > 0 ? (
+                    {postKind === 'livePhoto' ? (
+                      <LivePhotoActions
+                        items={livePhotoItems}
+                        videoId={videoData.id}
+                        onDownload={onDownloadTriggered}
+                      />
+                    ) : postKind === 'slideshow' ? (
                       <SlideshowDownloadActions
                         images={videoData.images}
                         videoData={videoData}

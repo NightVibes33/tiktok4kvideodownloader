@@ -588,6 +588,243 @@ function SlideshowDownloadActions({
   );
 }
 
+/* ── Live Photo (paired image + motion video) ── */
+
+function LivePhotoPreview({ items }: { items: LivePhotoItem[] }) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [playingMotion, setPlayingMotion] = useState(false);
+  const item = items[currentIndex];
+  const hasMotion = !!item?.motion;
+
+  const prev = () => { setPlayingMotion(false); setCurrentIndex((i) => (i > 0 ? i - 1 : items.length - 1)); };
+  const next = () => { setPlayingMotion(false); setCurrentIndex((i) => (i < items.length - 1 ? i + 1 : 0)); };
+
+  return (
+    <div className="relative w-full md:w-52 aspect-[9/16] bg-secondary shrink-0 rounded-xl overflow-hidden group/live">
+      {playingMotion && hasMotion ? (
+        <video
+          key={item.motion}
+          src={item.motion}
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full h-full object-cover"
+          onError={() => setPlayingMotion(false)}
+        />
+      ) : (
+        <img src={item.image} alt={`Live Photo ${currentIndex + 1}`} className="w-full h-full object-cover" />
+      )}
+
+      {hasMotion && !playingMotion && (
+        <button
+          onClick={() => setPlayingMotion(true)}
+          className="absolute inset-0 flex items-center justify-center bg-background/20 hover:bg-background/40 transition-all"
+          aria-label="Play motion"
+        >
+          <div className="w-12 h-12 rounded-full bg-primary/90 flex items-center justify-center glow-primary">
+            <Play className="w-5 h-5 text-primary-foreground fill-primary-foreground/50 ml-0.5" />
+          </div>
+        </button>
+      )}
+
+      {items.length > 1 && (
+        <>
+          <button onClick={prev} className="absolute left-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-background/70 flex items-center justify-center opacity-0 group-hover/live:opacity-100 transition-opacity">
+            <ChevronLeft className="w-4 h-4 text-heading" />
+          </button>
+          <button onClick={next} className="absolute right-1 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-background/70 flex items-center justify-center opacity-0 group-hover/live:opacity-100 transition-opacity">
+            <ChevronRight className="w-4 h-4 text-heading" />
+          </button>
+          <div className="absolute bottom-2 inset-x-0 flex justify-center gap-1">
+            {items.map((_, i) => (
+              <button key={i} onClick={() => { setCurrentIndex(i); setPlayingMotion(false); }} className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentIndex ? 'bg-primary w-3' : 'bg-foreground/40'}`} />
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-accent/90 text-accent-foreground text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+        <Sparkle className="w-3 h-3" />
+        Live Photo
+      </div>
+    </div>
+  );
+}
+
+function LivePhotoActions({
+  items,
+  videoId,
+  onDownload,
+}: {
+  items: LivePhotoItem[];
+  videoId: string;
+  onDownload?: () => void;
+}) {
+  const [busy, setBusy] = useState<null | 'image' | 'motion' | 'pair' | 'all'>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const item = items[currentIndex];
+
+  const handleDownloadStill = useCallback(async () => {
+    if (!item?.image || busy) return;
+    setBusy('image');
+    onDownload?.();
+    try {
+      const blob = await fetchAsBlob(item.image);
+      const ext = inferExtFromBlob(blob, inferExtFromUrl(item.image, 'jpg'), 'jpg');
+      await downloadBlobAs(blob, `tiktok-${videoId}-${currentIndex + 1}-image.${ext}`);
+    } catch {
+      window.open(item.image, '_blank');
+    } finally { setBusy(null); }
+  }, [item, busy, videoId, currentIndex, onDownload]);
+
+  const handleDownloadMotion = useCallback(async () => {
+    if (!item?.motion || busy) return;
+    setBusy('motion');
+    onDownload?.();
+    try {
+      const blob = await fetchAsBlob(item.motion);
+      const ext = inferExtFromBlob(blob, inferExtFromUrl(item.motion, 'mp4'), 'mp4');
+      await downloadBlobAs(blob, `tiktok-${videoId}-${currentIndex + 1}-motion.${ext}`);
+    } catch {
+      window.open(item.motion!, '_blank');
+    } finally { setBusy(null); }
+  }, [item, busy, videoId, currentIndex, onDownload]);
+
+  const handleDownloadPair = useCallback(async () => {
+    if (!item?.image || !item?.motion || busy) return;
+    setBusy('pair');
+    onDownload?.();
+    try {
+      const [imgBlob, motBlob] = await Promise.all([fetchAsBlob(item.image), fetchAsBlob(item.motion)]);
+      const imgExt = inferExtFromBlob(imgBlob, inferExtFromUrl(item.image, 'jpg'), 'jpg');
+      const motExt = inferExtFromBlob(motBlob, inferExtFromUrl(item.motion, 'mov'), 'mov');
+      const zip = new JSZip();
+      zip.file(`live-photo-image.${imgExt}`, imgBlob);
+      zip.file(`live-photo-motion.${motExt}`, motBlob);
+      zip.file('README.txt',
+        'TikTok Live Photo pair\n\n' +
+        `image: live-photo-image.${imgExt}\n` +
+        `motion: live-photo-motion.${motExt}\n\n` +
+        'To recreate a native iOS Live Photo, the image and motion video need\n' +
+        'matching Live Photo metadata (Apple ContentIdentifier). Tools like\n' +
+        'PhotosLivePhotos or Shortcuts can pair them on-device.\n');
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      await downloadBlobAs(zipBlob, `tiktok-${videoId}-${currentIndex + 1}-livephoto.zip`);
+    } catch {
+      // Fallback: trigger both individually
+      await handleDownloadStill();
+      await handleDownloadMotion();
+    } finally { setBusy(null); }
+  }, [item, busy, videoId, currentIndex, onDownload, handleDownloadStill, handleDownloadMotion]);
+
+  const handleDownloadAllPairs = useCallback(async () => {
+    if (busy) return;
+    setBusy('all');
+    onDownload?.();
+    try {
+      const zip = new JSZip();
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const folder = zip.folder(`live-photo-${i + 1}`)!;
+        try {
+          const imgBlob = await fetchAsBlob(it.image);
+          const imgExt = inferExtFromBlob(imgBlob, inferExtFromUrl(it.image, 'jpg'), 'jpg');
+          folder.file(`image.${imgExt}`, imgBlob);
+        } catch { /* skip on failure */ }
+        if (it.motion) {
+          try {
+            const motBlob = await fetchAsBlob(it.motion);
+            const motExt = inferExtFromBlob(motBlob, inferExtFromUrl(it.motion, 'mov'), 'mov');
+            folder.file(`motion.${motExt}`, motBlob);
+          } catch { /* skip */ }
+        }
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      await downloadBlobAs(zipBlob, `tiktok-${videoId}-all-livephotos.zip`);
+    } finally { setBusy(null); }
+  }, [items, videoId, busy, onDownload]);
+
+  const hasMotion = !!item?.motion;
+  const motionCount = items.filter((i) => i.motion).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold font-mono uppercase tracking-wider ring-1 bg-accent/15 text-accent ring-accent/30">
+          <Sparkle className="w-3 h-3" />
+          Live Photo
+        </span>
+        <span className="text-[10px] text-dim">
+          {items.length} photo{items.length !== 1 ? 's' : ''} · {motionCount} motion clip{motionCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {items.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {items.map((it, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentIndex(i)}
+              className={`relative w-12 h-16 rounded-md overflow-hidden ring-1 transition-all shrink-0 ${i === currentIndex ? 'ring-primary ring-2' : 'ring-border/50 hover:ring-border'}`}
+            >
+              <img src={it.image} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+              {it.motion && (
+                <span className="absolute bottom-0.5 right-0.5 bg-accent text-accent-foreground rounded-sm p-0.5">
+                  <Play className="w-2 h-2 fill-current" />
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={handleDownloadPair}
+        disabled={!hasMotion || !!busy}
+        className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground rounded-xl font-semibold transition-all ease-expo duration-200 glow-primary hover:shadow-[0_0_30px_hsl(var(--glow-primary)/0.4)]"
+      >
+        {busy === 'pair' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
+        {busy === 'pair' ? 'Bundling…' : 'Download Live Photo Pair (ZIP)'}
+      </button>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={handleDownloadStill}
+          disabled={!!busy}
+          className="flex items-center justify-center gap-2 py-2.5 bg-secondary hover:bg-secondary/80 text-heading rounded-xl text-sm font-medium transition-all ring-1 ring-border hover:ring-primary/30"
+        >
+          {busy === 'image' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Image className="w-3.5 h-3.5" />}
+          Still Image
+        </button>
+        <button
+          onClick={handleDownloadMotion}
+          disabled={!hasMotion || !!busy}
+          className="flex items-center justify-center gap-2 py-2.5 bg-secondary hover:bg-secondary/80 disabled:opacity-50 text-heading rounded-xl text-sm font-medium transition-all ring-1 ring-border hover:ring-primary/30"
+        >
+          {busy === 'motion' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+          Motion Video
+        </button>
+      </div>
+
+      {items.length > 1 && (
+        <button
+          onClick={handleDownloadAllPairs}
+          disabled={!!busy}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-accent/15 hover:bg-accent/25 text-accent ring-1 ring-accent/30 hover:ring-accent/50 rounded-xl font-semibold text-sm transition-all"
+        >
+          {busy === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          {busy === 'all' ? 'Bundling all…' : `Download All ${items.length} Pairs (ZIP)`}
+        </button>
+      )}
+
+      <p className="text-[10px] text-center text-dim leading-relaxed">
+        To recreate a native iOS Live Photo, the image and motion video need matching Live Photo metadata (Apple ContentIdentifier).
+      </p>
+    </div>
+  );
+}
+
 /* ── Main Component ── */
 
 // Module-level cache so the counter survives unmount/remount

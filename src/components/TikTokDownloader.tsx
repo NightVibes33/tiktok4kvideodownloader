@@ -1063,7 +1063,9 @@ export default function TikTokDownloader() {
           <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
             <div className="surface-elevated rounded-2xl overflow-hidden">
               <div className="flex flex-col md:flex-row">
-                {videoData.isSlideshow && videoData.images?.length > 0 ? (
+                {postKind === 'livePhoto' ? (
+                  <LivePhotoPreview items={livePhotoItems} />
+                ) : postKind === 'slideshow' ? (
                   <SlideshowPreview images={videoData.images} />
                 ) : (
                   <VideoPreview cover={videoData.video.cover} streamUrl={previewUrl} />

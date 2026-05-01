@@ -40,6 +40,8 @@ interface VideoData {
   qualities: QualityOption[];
   images: string[];
   isSlideshow: boolean;
+  livePhotoItems?: LivePhotoItem[];
+  isLivePhoto?: boolean;
   stats: {
     diggCount?: number;
     commentCount?: number;
@@ -47,6 +49,63 @@ interface VideoData {
     playCount?: number;
   };
   cookieToken: string;
+}
+
+interface LivePhotoItem {
+  image: string;
+  motion?: string;
+}
+
+type PostKind = "video" | "slideshow" | "livePhoto";
+
+function detectPostKind(data: VideoData | null): PostKind {
+  if (!data) return "video";
+  const items = data.livePhotoItems || [];
+  const hasMotion = items.some((i) => !!i.motion);
+  if ((data.isLivePhoto || hasMotion) && items.length > 0) return "livePhoto";
+  if (data.isSlideshow && data.images?.length > 0) return "slideshow";
+  return "video";
+}
+
+function inferExtFromUrl(url: string, fallback: string): string {
+  try {
+    const path = new URL(url).pathname.toLowerCase();
+    const m = path.match(/\.(jpg|jpeg|png|webp|heic|heif|mov|mp4|m4v)(?:$|[?#])/);
+    if (m) return m[1] === 'jpeg' ? 'jpg' : m[1];
+  } catch { /* ignore */ }
+  return fallback;
+}
+
+function inferExtFromBlob(blob: Blob, urlExt: string, fallback: string): string {
+  const t = (blob.type || '').toLowerCase();
+  if (t.includes('heic') || t.includes('heif')) return 'heic';
+  if (t.includes('png')) return 'png';
+  if (t.includes('webp')) return 'webp';
+  if (t.includes('jpeg') || t.includes('jpg')) return 'jpg';
+  if (t.includes('quicktime')) return 'mov';
+  if (t.includes('mp4')) return 'mp4';
+  return urlExt || fallback;
+}
+
+async function downloadBlobAs(blob: Blob, filename: string) {
+  const file = new File([blob], filename, { type: blob.type });
+  if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return; } catch { /* fall through */ }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+async function fetchAsBlob(url: string): Promise<Blob> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Fetch failed ${r.status}`);
+  return await r.blob();
 }
 
 /* ── Helpers ── */

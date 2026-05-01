@@ -193,10 +193,14 @@ async function fetchFromTikwm(videoUrl: string, encryptedCookies: string): Promi
         }
       }
     }
-    // tikwm sometimes returns a top-level `live_photo` array of motion videos parallel to `images`
-    if (Array.isArray(d.live_photo) && slideshowItems.length === d.live_photo.length) {
-      d.live_photo.forEach((m: any, i: number) => {
-        const motion = typeof m === 'string' ? m : m?.url || '';
+    // tikwm returns motion videos under `live_images` (preferred) or sometimes `live_photo`,
+    // as a parallel array of URLs (or {url} objects) matching `images` length.
+    const motionSource = (Array.isArray(d.live_images) && d.live_images.length === slideshowItems.length)
+      ? d.live_images
+      : (Array.isArray(d.live_photo) && d.live_photo.length === slideshowItems.length ? d.live_photo : null);
+    if (motionSource) {
+      motionSource.forEach((m: any, i: number) => {
+        const motion = typeof m === 'string' ? m : m?.url || m?.play_addr || '';
         if (motion) slideshowItems[i].motion = motion;
       });
     }

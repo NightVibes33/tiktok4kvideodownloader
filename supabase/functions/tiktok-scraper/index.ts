@@ -247,6 +247,8 @@ async function fetchFromTikwm(videoUrl: string, encryptedCookies: string): Promi
       qualities,
       images: slideshowImages,
       isSlideshow: slideshowImages.length > 0,
+      livePhotoItems: slideshowItems,
+      isLivePhoto: liveMotions > 0,
       stats: {
         diggCount: d.digg_count,
         commentCount: d.comment_count,

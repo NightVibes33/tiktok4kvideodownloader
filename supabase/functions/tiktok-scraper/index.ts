@@ -329,33 +329,57 @@ function mergeQualities(primary: QualityOption[], fallback: QualityOption[]): Qu
 
 // ─── Slideshow extraction ───
 
-function extractSlideshowImages(itemInfo: any): string[] {
-  const images: string[] = [];
+interface SlideshowItem {
+  image: string;
+  motion?: string; // optional motion video for iOS Live Photo
+}
 
-  const imagePost = itemInfo?.imagePost;
-  if (imagePost?.images && Array.isArray(imagePost.images)) {
-    for (const img of imagePost.images) {
-      const url = img?.imageURL?.urlList?.[0] || img?.imageUrl?.urlList?.[0] || img?.url || '';
-      if (url) images.push(url);
+function pickFirstUrl(...candidates: any[]): string {
+  for (const c of candidates) {
+    if (typeof c === 'string' && c) return c;
+    if (Array.isArray(c) && c.length > 0 && typeof c[0] === 'string') return c[0];
+  }
+  return '';
+}
+
+function extractSlideshowItems(itemInfo: any): SlideshowItem[] {
+  const items: SlideshowItem[] = [];
+
+  const sources = [itemInfo?.imagePost, itemInfo?.imagePostInfo, itemInfo?.image_post_info];
+  for (const src of sources) {
+    if (items.length > 0) break;
+    if (!src?.images || !Array.isArray(src.images)) continue;
+    for (const img of src.images) {
+      const image = pickFirstUrl(
+        img?.imageURL?.urlList,
+        img?.imageUrl?.urlList,
+        img?.display_image?.url_list,
+        img?.url,
+      );
+      if (!image) continue;
+      const motion = pickFirstUrl(
+        img?.video?.playAddr?.UrlList,
+        img?.video?.PlayAddr?.UrlList,
+        img?.video?.url_list,
+        img?.video?.playAddr,
+        img?.video_url,
+      );
+      items.push({ image, ...(motion ? { motion } : {}) });
     }
   }
 
-  const imagePostInfo = itemInfo?.imagePostInfo;
-  if (images.length === 0 && imagePostInfo?.images && Array.isArray(imagePostInfo.images)) {
-    for (const img of imagePostInfo.images) {
-      const url = img?.imageURL?.urlList?.[0] || img?.imageUrl?.urlList?.[0] || img?.url || '';
-      if (url) images.push(url);
-    }
-  }
-
-  if (images.length === 0 && itemInfo?.stickersOnItem) {
+  if (items.length === 0 && itemInfo?.stickersOnItem) {
     for (const s of itemInfo.stickersOnItem) {
       const url = s?.stickerText?.[0] || '';
-      if (url) images.push(url);
+      if (url) items.push({ image: url });
     }
   }
 
-  return images;
+  return items;
+}
+
+function extractSlideshowImages(itemInfo: any): string[] {
+  return extractSlideshowItems(itemInfo).map((i) => i.image);
 }
 
 // ─── Result builder ───

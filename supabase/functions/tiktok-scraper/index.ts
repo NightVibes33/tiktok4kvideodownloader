@@ -392,7 +392,10 @@ function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) 
     || (typeof video?.playAddr === 'string' ? video.playAddr : '')
     || (typeof video?.PlayAddr === 'string' ? video.PlayAddr : '');
   const bestUrl = qualities[0]?.url || playAddrUrl || video?.downloadAddr || '';
-  const slideshowImages = extractSlideshowImages(itemInfo);
+  const slideshowItems = extractSlideshowItems(itemInfo);
+  const slideshowImages = slideshowItems.map((i) => i.image);
+  const liveMotions = slideshowItems.map((i) => i.motion || '').filter(Boolean);
+  const isLivePhoto = slideshowItems.length > 0 && liveMotions.length > 0;
 
   return {
     id: itemInfo?.id || '',
@@ -414,6 +417,8 @@ function buildResult(itemInfo: any, parsedVideo: any, encryptedCookies: string) 
     qualities,
     images: slideshowImages,
     isSlideshow: slideshowImages.length > 0,
+    livePhotoItems: slideshowItems,
+    isLivePhoto,
     stats: itemInfo?.stats || {},
     cookieToken: encryptedCookies,
   };

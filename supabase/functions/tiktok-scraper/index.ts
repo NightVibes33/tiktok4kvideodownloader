@@ -183,13 +183,25 @@ async function fetchFromTikwm(videoUrl: string, encryptedCookies: string): Promi
     const d = data.data;
     const qualities: QualityOption[] = [];
 
-    const slideshowImages: string[] = [];
+    const slideshowItems: { image: string; motion?: string }[] = [];
     if (d.images && Array.isArray(d.images)) {
       for (const imgUrl of d.images) {
-        if (typeof imgUrl === 'string' && imgUrl) slideshowImages.push(imgUrl);
-        else if (imgUrl?.url) slideshowImages.push(imgUrl.url);
+        if (typeof imgUrl === 'string' && imgUrl) slideshowItems.push({ image: imgUrl });
+        else if (imgUrl?.url) {
+          const motion = imgUrl?.video || imgUrl?.video_url || imgUrl?.live_photo || '';
+          slideshowItems.push({ image: imgUrl.url, ...(motion ? { motion } : {}) });
+        }
       }
     }
+    // tikwm sometimes returns a top-level `live_photo` array of motion videos parallel to `images`
+    if (Array.isArray(d.live_photo) && slideshowItems.length === d.live_photo.length) {
+      d.live_photo.forEach((m: any, i: number) => {
+        const motion = typeof m === 'string' ? m : m?.url || '';
+        if (motion) slideshowItems[i].motion = motion;
+      });
+    }
+    const slideshowImages = slideshowItems.map((s) => s.image);
+    const liveMotions = slideshowItems.filter((s) => s.motion).length;
 
     // Offer BOTH HD and compatible when available, with honest labels
     if (d.hdplay) {

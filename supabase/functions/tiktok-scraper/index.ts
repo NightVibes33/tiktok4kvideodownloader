@@ -165,6 +165,8 @@ interface FallbackResult {
   qualities: QualityOption[];
   images: string[];
   isSlideshow: boolean;
+  livePhotoItems?: { image: string; motion?: string }[];
+  isLivePhoto?: boolean;
   stats: Record<string, number>;
   cookieToken: string;
 }

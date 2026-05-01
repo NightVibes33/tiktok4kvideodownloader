@@ -955,6 +955,9 @@ export default function TikTokDownloader() {
 
   const qualities = (videoData?.qualities || []).filter((q) => !q.watermark);
   const activeQuality = qualities[selectedQuality] || qualities[0] || videoData?.qualities?.[0] || null;
+  const postKind = detectPostKind(videoData);
+  const livePhotoItems: LivePhotoItem[] = videoData?.livePhotoItems
+    ?? (videoData?.images || []).map((image) => ({ image }));
   const qualityTier = getQualityTier(activeQuality);
   const previewUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, false) : "";
   const downloadUrl = videoData && activeQuality ? buildProxyUrl(videoData, activeQuality, true) : "";

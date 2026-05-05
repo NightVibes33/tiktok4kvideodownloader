@@ -16,15 +16,19 @@ struct NativeSlideshowDownloaderView: View {
                         ) {
                             urlInput
                         }
+                        .motionReveal()
 
                         if let success = model.successMessage {
                             SuccessBanner(message: success)
+                                .motionReveal(delay: 0.05)
                         }
                         if let error = model.errorMessage {
                             ErrorBanner(message: error)
+                                .motionReveal(delay: 0.05)
                         }
                         if model.hasSlideshowResult {
                             resultsHeader
+                                .motionReveal(delay: 0.08)
                             LazyVGrid(columns: columns, spacing: 12) {
                                 ForEach(Array(model.livePhotoItems.enumerated()), id: \.offset) { index, item in
                                     SlideCard(index: index + 1, item: item) {
@@ -34,6 +38,7 @@ struct NativeSlideshowDownloaderView: View {
                                             await model.saveLivePhoto(imageRemoteString: item.image, videoRemoteString: motion)
                                         }
                                     }
+                                    .motionReveal(delay: 0.1 + (Double(index) * 0.03))
                                 }
                             }
                         }
@@ -71,36 +76,37 @@ struct NativeSlideshowDownloaderView: View {
     }
 
     private var resultsHeader: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("\(model.images.count) slides found")
-                .font(.headline)
-                .foregroundStyle(.white)
-            Text("\(model.livePhotoReadyItems.count) slides include motion and can be saved as native Live Photos.")
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.7))
-            HStack(spacing: 10) {
-                Button("Save All Photos") {
-                    Task {
-                        for imageURL in model.images { await model.savePhoto(imageURL) }
-                    }
-                }
-                .buttonStyle(PrimaryButtonStyle())
-
-                if !model.livePhotoReadyItems.isEmpty {
-                    Button("Save Live Photos") {
+        FloatingResultCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("\(model.images.count) slides found")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("\(model.livePhotoReadyItems.count) slides include motion and can be saved as native Live Photos.")
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.7))
+                HStack(spacing: 10) {
+                    Button("Save All Photos") {
                         Task {
-                            for item in model.livePhotoReadyItems {
-                                if let motion = item.motion {
-                                    await model.saveLivePhoto(imageRemoteString: item.image, videoRemoteString: motion)
+                            for imageURL in model.images { await model.savePhoto(imageURL) }
+                        }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+
+                    if !model.livePhotoReadyItems.isEmpty {
+                        Button("Save Live Photos") {
+                            Task {
+                                for item in model.livePhotoReadyItems {
+                                    if let motion = item.motion {
+                                        await model.saveLivePhoto(imageRemoteString: item.image, videoRemoteString: motion)
+                                    }
                                 }
                             }
                         }
+                        .buttonStyle(SecondaryAccentButtonStyle())
                     }
-                    .buttonStyle(SecondaryAccentButtonStyle())
                 }
             }
         }
-        .cardStyle()
     }
 }
 
@@ -111,51 +117,52 @@ struct SlideCard: View {
     let saveLiveAction: () async -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            AsyncImage(url: URL(string: item.image)) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().scaledToFill()
-                case .failure(_):
-                    Color.gray.opacity(0.25)
-                case .empty:
-                    ProgressView()
-                @unknown default:
-                    Color.gray.opacity(0.25)
+        FloatingResultCard {
+            VStack(alignment: .leading, spacing: 12) {
+                AsyncImage(url: URL(string: item.image)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    case .failure(_):
+                        Color.gray.opacity(0.25)
+                    case .empty:
+                        ProgressView()
+                    @unknown default:
+                        Color.gray.opacity(0.25)
+                    }
+                }
+                .frame(height: 220)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(alignment: .topLeading) {
+                    Text("SLIDE \(index)")
+                        .font(.caption2.weight(.bold))
+                        .tracking(1.5)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.black.opacity(0.45))
+                        .foregroundStyle(.white)
+                        .clipShape(Capsule())
+                        .padding(12)
+                }
+
+                HStack {
+                    Text(item.motion == nil ? "Still photo" : "Motion-backed Live Photo")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Image(systemName: item.motion == nil ? "photo" : "livephoto")
+                        .foregroundStyle(item.motion == nil ? AppPalette.peach : AppPalette.cyan)
+                }
+
+                Button("Save Photo") { Task { await savePhotoAction() } }
+                    .buttonStyle(PrimaryButtonStyle())
+
+                if item.motion != nil {
+                    Button("Save Live Photo") { Task { await saveLiveAction() } }
+                        .buttonStyle(SecondaryAccentButtonStyle())
                 }
             }
-            .frame(height: 220)
-            .frame(maxWidth: .infinity)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(alignment: .topLeading) {
-                Text("SLIDE \(index)")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.5)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.45))
-                    .foregroundStyle(.white)
-                    .clipShape(Capsule())
-                    .padding(12)
-            }
-
-            HStack {
-                Text(item.motion == nil ? "Still photo" : "Motion-backed Live Photo")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Spacer()
-                Image(systemName: item.motion == nil ? "photo" : "livephoto")
-                    .foregroundStyle(item.motion == nil ? AppPalette.peach : AppPalette.cyan)
-            }
-
-            Button("Save Photo") { Task { await savePhotoAction() } }
-                .buttonStyle(PrimaryButtonStyle())
-
-            if item.motion != nil {
-                Button("Save Live Photo") { Task { await saveLiveAction() } }
-                    .buttonStyle(SecondaryAccentButtonStyle())
-            }
         }
-        .cardStyle()
     }
 }

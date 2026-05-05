@@ -40,7 +40,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.bobbytatum.tiktok4knative
         PRODUCT_NAME: TikTok4KNative
-        SWIFT_VERSION: 5.9
+        SWIFT_VERSION: 5.0
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_FILE: TikTok4KNative/Info.plist
         DEVELOPMENT_TEAM: ""

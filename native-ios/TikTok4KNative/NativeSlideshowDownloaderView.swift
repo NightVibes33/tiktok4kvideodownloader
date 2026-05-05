@@ -6,30 +6,42 @@ struct NativeSlideshowDownloaderView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 18) {
-                    urlInput
-                    if let error = model.errorMessage {
-                        ErrorBanner(message: error)
-                    }
-                    if model.hasSlideshowResult {
-                        resultsHeader
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            ForEach(model.images, id: \.self) { imageURL in
-                                SlideCard(imageURL: imageURL, videoURL: model.videoURL, livePhotoCapable: model.livePhotoCapable) {
-                                    await model.savePhoto(imageURL)
-                                } saveLiveAction: {
-                                    if let videoURL = model.videoURL {
-                                        await model.saveLivePhoto(imageRemoteString: imageURL, videoRemoteString: videoURL)
+            AppChrome {
+                ScrollView {
+                    VStack(spacing: 18) {
+                        HeroCard(
+                            eyebrow: "Slideshows",
+                            title: "Separate still slides from real Live Photos",
+                            subtitle: "This screen only offers native Live Photo save when a specific slide comes with its own motion asset."
+                        ) {
+                            urlInput
+                        }
+
+                        if let success = model.successMessage {
+                            SuccessBanner(message: success)
+                        }
+                        if let error = model.errorMessage {
+                            ErrorBanner(message: error)
+                        }
+                        if model.hasSlideshowResult {
+                            resultsHeader
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(Array(model.livePhotoItems.enumerated()), id: \.offset) { index, item in
+                                    SlideCard(index: index + 1, item: item) {
+                                        await model.savePhoto(item.image)
+                                    } saveLiveAction: {
+                                        if let motion = item.motion {
+                                            await model.saveLivePhoto(imageRemoteString: item.image, videoRemoteString: motion)
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                    .padding()
+                    .frame(maxWidth: 800)
+                    .frame(maxWidth: .infinity)
                 }
-                .padding()
-                .frame(maxWidth: 800)
-                .frame(maxWidth: .infinity)
             }
             .navigationTitle("Slideshows")
         }
@@ -39,43 +51,48 @@ struct NativeSlideshowDownloaderView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Paste a TikTok slideshow URL")
                 .font(.headline)
+                .foregroundStyle(.white)
             TextField("https://www.tiktok.com/...", text: $model.url)
                 .textInputAutocapitalization(.never)
                 .keyboardType(.URL)
                 .autocorrectionDisabled()
                 .padding()
-                .background(Color(.secondarySystemBackground))
+                .background(AppPalette.panelStrong)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             Button(action: { Task { await model.extract() } }) {
                 if model.isLoading {
-                    ProgressView().frame(maxWidth: .infinity)
+                    ProgressView().tint(.white)
                 } else {
-                    Text("Extract Slideshow").frame(maxWidth: .infinity)
+                    Label("Extract Slideshow", systemImage: "photo.stack")
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
         }
-        .cardStyle()
     }
 
     private var resultsHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\(model.images.count) photos found")
+            Text("\(model.images.count) slides found")
                 .font(.headline)
+                .foregroundStyle(.white)
+            Text("\(model.livePhotoReadyItems.count) slides include motion and can be saved as native Live Photos.")
+                .font(.footnote)
+                .foregroundStyle(.white.opacity(0.7))
             HStack(spacing: 10) {
-                Button("Download All Photos") {
+                Button("Save All Photos") {
                     Task {
                         for imageURL in model.images { await model.savePhoto(imageURL) }
                     }
                 }
                 .buttonStyle(PrimaryButtonStyle())
 
-                if model.livePhotoCapable, model.videoURL != nil {
-                    Button("Download All Live") {
+                if !model.livePhotoReadyItems.isEmpty {
+                    Button("Save Live Photos") {
                         Task {
-                            guard let videoURL = model.videoURL else { return }
-                            for imageURL in model.images {
-                                await model.saveLivePhoto(imageRemoteString: imageURL, videoRemoteString: videoURL)
+                            for item in model.livePhotoReadyItems {
+                                if let motion = item.motion {
+                                    await model.saveLivePhoto(imageRemoteString: item.image, videoRemoteString: motion)
+                                }
                             }
                         }
                     }
@@ -88,15 +105,14 @@ struct NativeSlideshowDownloaderView: View {
 }
 
 struct SlideCard: View {
-    let imageURL: String
-    let videoURL: String?
-    let livePhotoCapable: Bool
+    let index: Int
+    let item: ScraperLivePhotoItem
     let savePhotoAction: () async -> Void
     let saveLiveAction: () async -> Void
 
     var body: some View {
-        VStack(spacing: 10) {
-            AsyncImage(url: URL(string: imageURL)) { phase in
+        VStack(alignment: .leading, spacing: 12) {
+            AsyncImage(url: URL(string: item.image)) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().scaledToFill()
@@ -108,20 +124,38 @@ struct SlideCard: View {
                     Color.gray.opacity(0.25)
                 }
             }
-            .frame(height: 180)
+            .frame(height: 220)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(alignment: .topLeading) {
+                Text("SLIDE \(index)")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.5)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.45))
+                    .foregroundStyle(.white)
+                    .clipShape(Capsule())
+                    .padding(12)
+            }
+
+            HStack {
+                Text(item.motion == nil ? "Still photo" : "Motion-backed Live Photo")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Image(systemName: item.motion == nil ? "photo" : "livephoto")
+                    .foregroundStyle(item.motion == nil ? AppPalette.peach : AppPalette.cyan)
+            }
 
             Button("Save Photo") { Task { await savePhotoAction() } }
                 .buttonStyle(PrimaryButtonStyle())
 
-            if livePhotoCapable, videoURL != nil {
+            if item.motion != nil {
                 Button("Save Live Photo") { Task { await saveLiveAction() } }
                     .buttonStyle(SecondaryAccentButtonStyle())
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .cardStyle()
     }
 }

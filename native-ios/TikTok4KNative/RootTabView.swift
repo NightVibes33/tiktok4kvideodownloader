@@ -191,7 +191,7 @@ struct SectionEyebrow: View {
 struct NarrativeCard: View {
     let step: String
     let title: String
-    let body: String
+    let copy: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -202,7 +202,7 @@ struct NarrativeCard: View {
             Text(title)
                 .font(.headline)
                 .foregroundStyle(.white)
-            Text(body)
+            Text(copy)
                 .font(.footnote)
                 .foregroundStyle(.white.opacity(0.7))
                 .fixedSize(horizontal: false, vertical: true)

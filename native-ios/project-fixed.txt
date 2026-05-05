@@ -1,0 +1,48 @@
+name: TikTok4KNative
+options:
+  bundleIdPrefix: com.bobbytatum
+configs:
+  Debug: debug
+  Release: release
+targets:
+  TikTok4KNative:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: TikTok4KNative/Core.swift
+      - path: TikTok4KNative/TikTok4KNativeApp.swift
+      - path: TikTok4KNative/RootTabView.swift
+      - path: TikTok4KNative/NativeVideoDownloaderView.swift
+      - path: TikTok4KNative/SettingsView.swift
+      - path: TikTok4KNative/SharedUI.swift
+      - path: TikTok4KNative/NativeSlideshowDownloaderView.swift
+      - path: TikTok4KNative/NativeSlideshowImageSupport.swift
+      - path: TikTok4KNative/NativeLivePhotoMetadata.swift
+      - path: TikTok4KNative/NativeLivePhotoWriter.swift
+    resources:
+      - TikTok4KNative/Assets.xcassets
+    info:
+      path: TikTok4KNative/Info.plist
+      properties:
+        CFBundleDisplayName: TikTok 4K
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSPhotoLibraryAddUsageDescription: Save TikTok slideshow photos and Live Photos to your library.
+        NSPhotoLibraryUsageDescription: Save TikTok slideshow photos and Live Photos to your library.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bobbytatum.tiktok4knative
+        PRODUCT_NAME: TikTok4KNative
+        SWIFT_VERSION: 5.0
+        TARGETED_DEVICE_FAMILY: "1,2"
+        INFOPLIST_FILE: TikTok4KNative/Info.plist
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGNING_ALLOWED: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

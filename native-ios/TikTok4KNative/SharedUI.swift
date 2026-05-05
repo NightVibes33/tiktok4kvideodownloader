@@ -17,15 +17,15 @@ struct PrimaryButtonStyle: ButtonStyle {
             .frame(maxWidth: .infinity)
             .background(
                 LinearGradient(
-                    colors: [AppPalette.pink.opacity(configuration.isPressed ? 0.75 : 1.0), AppPalette.peach.opacity(configuration.isPressed ? 0.75 : 1.0)],
+                    colors: [AppPalette.pink.opacity(configuration.isPressed ? 0.82 : 1.0), AppPalette.peach.opacity(configuration.isPressed ? 0.82 : 1.0)],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
             .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: AppPalette.pink.opacity(0.28), radius: 18, y: 10)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .shadow(color: AppPalette.pink.opacity(0.24), radius: 18, y: 10)
             .animation(.spring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
@@ -36,11 +36,11 @@ struct SecondaryAccentButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .padding(.horizontal, 18)
             .frame(maxWidth: .infinity)
-            .background(AppPalette.cyan.opacity(configuration.isPressed ? 0.78 : 0.92))
+            .background(AppPalette.cyan.opacity(configuration.isPressed ? 0.80 : 0.96))
             .foregroundStyle(.black)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: AppPalette.cyan.opacity(0.22), radius: 16, y: 8)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .shadow(color: AppPalette.cyan.opacity(0.18), radius: 16, y: 8)
             .animation(.spring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
@@ -141,13 +141,7 @@ struct HeroCard<Content: View>: View {
             }
             content
         }
-        .padding(22)
-        .background(AppPalette.panel)
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .strokeBorder(AppPalette.line, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .glassSurface(cornerRadius: 28)
     }
 }
 
@@ -160,19 +154,7 @@ struct FloatingResultCard<Content: View>: View {
 
     var body: some View {
         content
-            .padding(18)
-            .background(
-                LinearGradient(
-                    colors: [AppPalette.panelStrong, AppPalette.panel],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(AppPalette.line, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .glassSurface(cornerRadius: 24)
             .shadow(color: Color.black.opacity(0.18), radius: 22, y: 14)
     }
 }
@@ -194,19 +176,42 @@ struct MotionReveal: ViewModifier {
     }
 }
 
+struct GlassSurfaceModifier: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .padding(18)
+                .background(AppPalette.panel.opacity(0.001))
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8)
+                )
+        } else {
+            content
+                .padding(18)
+                .background(AppPalette.panel)
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(AppPalette.line, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+    }
+}
+
 extension View {
     func cardStyle() -> some View {
-        self
-            .padding(18)
-            .background(AppPalette.panel)
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(AppPalette.line, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        glassSurface(cornerRadius: 20)
     }
 
     func motionReveal(delay: Double = 0) -> some View {
         modifier(MotionReveal(delay: delay))
+    }
+
+    func glassSurface(cornerRadius: CGFloat) -> some View {
+        modifier(GlassSurfaceModifier(cornerRadius: cornerRadius))
     }
 }

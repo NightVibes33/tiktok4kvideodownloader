@@ -167,13 +167,7 @@ struct LiquidGlassGroup<Content: View>: View {
     }
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing) {
-                content
-            }
-        } else {
-            content
-        }
+        content
     }
 }
 
@@ -189,19 +183,11 @@ struct LiquidGlassCapsule<Content: View>: View {
     }
 
     var body: some View {
-        if #available(iOS 26.0, *) {
-            content
-                .padding(.horizontal, paddingX)
-                .padding(.vertical, paddingY)
-                .background(Color.white.opacity(0.001))
-                .glassEffect(.regular, in: Capsule())
-        } else {
-            content
-                .padding(.horizontal, paddingX)
-                .padding(.vertical, paddingY)
-                .background(AppPalette.panelStrong)
-                .clipShape(Capsule())
-        }
+        content
+            .padding(.horizontal, paddingX)
+            .padding(.vertical, paddingY)
+            .background(AppPalette.panelStrong)
+            .clipShape(Capsule())
     }
 }
 
@@ -226,25 +212,14 @@ struct GlassSurfaceModifier: ViewModifier {
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                .padding(18)
-                .background(AppPalette.panel.opacity(0.001))
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8)
-                )
-        } else {
-            content
-                .padding(18)
-                .background(AppPalette.panel)
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(AppPalette.line, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
+        content
+            .padding(18)
+            .background(AppPalette.panel)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(AppPalette.line, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }
 

@@ -25,6 +25,8 @@ struct PrimaryButtonStyle: ButtonStyle {
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: AppPalette.pink.opacity(0.28), radius: 18, y: 10)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -38,6 +40,8 @@ struct SecondaryAccentButtonStyle: ButtonStyle {
             .foregroundStyle(.black)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: AppPalette.cyan.opacity(0.22), radius: 16, y: 8)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -71,6 +75,7 @@ struct SuccessBanner: View {
 
 struct AppChrome<Content: View>: View {
     let content: Content
+    @State private var glowShift = false
 
     init(@ViewBuilder content: () -> Content) {
         self.content = content()
@@ -89,15 +94,20 @@ struct AppChrome<Content: View>: View {
                 .fill(AppPalette.pink.opacity(0.18))
                 .frame(width: 260, height: 260)
                 .blur(radius: 40)
-                .offset(x: 120, y: -260)
+                .offset(x: glowShift ? 140 : 110, y: glowShift ? -240 : -270)
+                .animation(.easeInOut(duration: 5).repeatForever(autoreverses: true), value: glowShift)
 
             Circle()
                 .fill(AppPalette.cyan.opacity(0.14))
                 .frame(width: 280, height: 280)
                 .blur(radius: 50)
-                .offset(x: -140, y: -140)
+                .offset(x: glowShift ? -160 : -120, y: glowShift ? -120 : -160)
+                .animation(.easeInOut(duration: 6).repeatForever(autoreverses: true), value: glowShift)
 
             content
+        }
+        .onAppear {
+            glowShift = true
         }
     }
 }
@@ -141,6 +151,49 @@ struct HeroCard<Content: View>: View {
     }
 }
 
+struct FloatingResultCard<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(18)
+            .background(
+                LinearGradient(
+                    colors: [AppPalette.panelStrong, AppPalette.panel],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(AppPalette.line, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: Color.black.opacity(0.18), radius: 22, y: 14)
+    }
+}
+
+struct MotionReveal: ViewModifier {
+    let delay: Double
+    @State private var visible = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(visible ? 1 : 0)
+            .offset(y: visible ? 0 : 14)
+            .scaleEffect(visible ? 1 : 0.985)
+            .onAppear {
+                withAnimation(.spring(response: 0.55, dampingFraction: 0.86).delay(delay)) {
+                    visible = true
+                }
+            }
+    }
+}
+
 extension View {
     func cardStyle() -> some View {
         self
@@ -151,5 +204,9 @@ extension View {
                     .strokeBorder(AppPalette.line, lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    func motionReveal(delay: Double = 0) -> some View {
+        modifier(MotionReveal(delay: delay))
     }
 }

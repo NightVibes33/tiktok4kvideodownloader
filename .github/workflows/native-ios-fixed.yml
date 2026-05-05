@@ -11,6 +11,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Select Xcode 26.4.1
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.4.1'
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -22,16 +27,23 @@ jobs:
       - name: Build app
         run: |
           cd native-ios
-          xcodebuild -scheme TikTok4KNative -sdk iphoneos -configuration Release build CODE_SIGNING_ALLOWED=NO
+          xcodebuild \
+            -scheme TikTok4KNative \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath build \
+            build \
+            CODE_SIGNING_ALLOWED=NO
 
       - name: Package IPA
         run: |
+          rm -rf Payload TikTok4KNative.ipa
           mkdir Payload
-          cp -R native-ios/build/Release-iphoneos/TikTok4KNative.app Payload/
+          cp -R native-ios/build/Build/Products/Release-iphoneos/TikTok4KNative.app Payload/
           zip -r TikTok4KNative.ipa Payload
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: TikTok4KNative-Fixed
+          name: TikTok4KNative
           path: TikTok4KNative.ipa

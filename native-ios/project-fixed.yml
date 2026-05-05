@@ -15,10 +15,8 @@ targets:
       - path: TikTok4KNative/RootTabView.swift
       - path: TikTok4KNative/NativeVideoDownloaderView.swift
       - path: TikTok4KNative/SettingsView.swift
-      - path: TikTok4KNative/SharedUIFixed.swift
-      - path: TikTok4KNative/NativeSlideshowViewModel.swift
-      - path: TikTok4KNative/NativeSlideshowScreenFixed.swift
-      - path: TikTok4KNative/SlideCardFixed.swift
+      - path: TikTok4KNative/SharedUI.swift
+      - path: TikTok4KNative/NativeSlideshowDownloaderView.swift
       - path: TikTok4KNative/NativeSlideshowImageSupport.swift
       - path: TikTok4KNative/NativeLivePhotoMetadata.swift
       - path: TikTok4KNative/NativeLivePhotoWriter.swift

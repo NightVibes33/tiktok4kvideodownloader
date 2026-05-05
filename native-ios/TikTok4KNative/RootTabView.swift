@@ -31,25 +31,29 @@ struct NativeHomeView: View {
                             subtitle: "Fast TikTok video saves, cleaner slideshow handling, and honest Live Photo behavior when motion-backed slides actually exist."
                         ) {
                             VStack(spacing: 16) {
-                                HStack(spacing: 12) {
-                                    PillMetric(value: "4K", label: "video")
-                                    PillMetric(value: "HD", label: "slides")
-                                    PillMetric(value: "Live", label: "photo")
+                                LiquidGlassGroup(spacing: 12) {
+                                    HStack(spacing: 12) {
+                                        PillMetric(value: "4K", label: "video")
+                                        PillMetric(value: "HD", label: "slides")
+                                        PillMetric(value: "Live", label: "photo")
+                                    }
                                 }
 
-                                HStack(spacing: 12) {
-                                    SpotlightTile(
-                                        icon: "play.rectangle.fill",
-                                        title: "Video flow",
-                                        subtitle: "Extract clean files and hand them off to the native iOS share sheet.",
-                                        accent: AppPalette.pink
-                                    )
-                                    SpotlightTile(
-                                        icon: "livephoto",
-                                        title: "Live Photo aware",
-                                        subtitle: "Only expose Live Photo save when a slide has its own motion asset.",
-                                        accent: AppPalette.cyan
-                                    )
+                                LiquidGlassGroup(spacing: 12) {
+                                    HStack(spacing: 12) {
+                                        SpotlightTile(
+                                            icon: "play.rectangle.fill",
+                                            title: "Video flow",
+                                            subtitle: "Extract clean files and hand them off to the native iOS share sheet.",
+                                            accent: AppPalette.pink
+                                        )
+                                        SpotlightTile(
+                                            icon: "livephoto",
+                                            title: "Live Photo aware",
+                                            subtitle: "Only expose Live Photo save when a slide has its own motion asset.",
+                                            accent: AppPalette.cyan
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -69,24 +73,24 @@ struct NativeHomeView: View {
                                 NarrativeCard(
                                     step: "01",
                                     title: "Clearer structure",
-                                    body: "The app now reads like a product, with stronger hierarchy and less placeholder utility styling."
+                                    copy: "The app now reads like a product, with stronger hierarchy and less placeholder utility styling."
                                 )
                                 NarrativeCard(
                                     step: "02",
                                     title: "Better trust",
-                                    body: "The slideshow screen tells the truth about which slides can become Live Photos on iOS."
+                                    copy: "The slideshow screen tells the truth about which slides can become Live Photos on iOS."
                                 )
                             }
                             HStack(spacing: 12) {
                                 NarrativeCard(
                                     step: "03",
                                     title: "Native feel",
-                                    body: "Glass panels, deeper contrast, and cleaner spacing make the IPA feel less generic."
+                                    copy: "Glass panels, deeper contrast, and cleaner spacing make the IPA feel less generic."
                                 )
                                 NarrativeCard(
                                     step: "04",
                                     title: "Shared backend",
-                                    body: "The native app stays aligned with the same scraper/backend responses as the web product."
+                                    copy: "The native app stays aligned with the same scraper/backend responses as the web product."
                                 )
                             }
                         }
@@ -131,19 +135,18 @@ struct PillMetric: View {
     let label: String
 
     var body: some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
-            Text(label.uppercased())
-                .font(.caption2.weight(.semibold))
-                .tracking(1.6)
-                .foregroundStyle(.white.opacity(0.65))
+        LiquidGlassCapsule {
+            VStack(spacing: 4) {
+                Text(value)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+                Text(label.uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .tracking(1.6)
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+            .frame(maxWidth: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(AppPalette.panelStrong)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -154,25 +157,25 @@ struct SpotlightTile: View {
     let accent: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: icon)
-                .font(.headline.weight(.bold))
-                .foregroundStyle(.black)
-                .frame(width: 34, height: 34)
-                .background(accent)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            Text(title)
-                .font(.headline)
-                .foregroundStyle(.white)
-            Text(subtitle)
-                .font(.footnote)
-                .foregroundStyle(.white.opacity(0.72))
-                .fixedSize(horizontal: false, vertical: true)
+        Group {
+            VStack(alignment: .leading, spacing: 10) {
+                Image(systemName: icon)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.black)
+                    .frame(width: 34, height: 34)
+                    .background(accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text(subtitle)
+                    .font(.footnote)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(AppPalette.panelStrong)
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .glassSurface(cornerRadius: 22)
     }
 }
 
@@ -208,12 +211,6 @@ struct NarrativeCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(AppPalette.panel)
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(AppPalette.line, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .glassSurface(cornerRadius: 22)
     }
 }

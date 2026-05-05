@@ -15,10 +15,16 @@ struct ScraperVideo: Codable, Hashable {
     let height: Int?
 }
 
+struct ScraperLivePhotoItem: Codable, Hashable {
+    let image: String
+    let motion: String?
+}
+
 struct ScraperResponse: Codable, Hashable {
     let images: [String]?
     let video: ScraperVideo?
-    let livePhotoCapable: Bool?
+    let livePhotoItems: [ScraperLivePhotoItem]?
+    let isLivePhoto: Bool?
     let error: String?
 }
 
@@ -97,20 +103,10 @@ enum PhotoLibrarySaver {
     }
 
     static func saveLivePhoto(imageRemoteString: String, videoRemoteString: String) async throws {
-        try await requestAddOnlyAuthorization()
-        let imageURL = try await downloadTempFile(from: imageRemoteString, suggestedExtension: "jpg")
-        let videoURL = try await downloadTempFile(from: videoRemoteString, suggestedExtension: "mov")
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            PHPhotoLibrary.shared().performChanges({
-                let request = PHAssetCreationRequest.forAsset()
-                request.addResource(with: .photo, fileURL: imageURL, options: nil)
-                request.addResource(with: .pairedVideo, fileURL: videoURL, options: nil)
-            }, completionHandler: { success, error in
-                if let error { continuation.resume(throwing: error) }
-                else if success { continuation.resume(returning: ()) }
-                else { continuation.resume(throwing: NativeAppError.invalidResponse) }
-            })
-        }
+        try await NativeLivePhotoWriter.saveLivePhoto(
+            imageRemoteString: imageRemoteString,
+            videoRemoteString: videoRemoteString
+        )
     }
 }
 
@@ -119,9 +115,10 @@ final class DownloaderViewModel: ObservableObject {
     @Published var url = ""
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var successMessage: String?
     @Published var images: [String] = []
     @Published var videoURL: String?
-    @Published var livePhotoCapable = false
+    @Published var livePhotoItems: [ScraperLivePhotoItem] = []
 
     private let client = EdgeFunctionClient()
 
@@ -132,14 +129,15 @@ final class DownloaderViewModel: ObservableObject {
         }
         isLoading = true
         errorMessage = nil
+        successMessage = nil
         images = []
         videoURL = nil
-        livePhotoCapable = false
+        livePhotoItems = []
         do {
             let response = try await client.scrapeTikTok(url: url)
             images = response.images ?? []
             videoURL = response.video?.url
-            livePhotoCapable = response.livePhotoCapable ?? (response.video?.url != nil)
+            livePhotoItems = response.livePhotoItems ?? images.map { ScraperLivePhotoItem(image: $0, motion: nil) }
             if images.isEmpty && videoURL == nil {
                 throw NativeAppError.invalidResponse
             }
@@ -150,15 +148,26 @@ final class DownloaderViewModel: ObservableObject {
     }
 
     func savePhoto(_ remoteString: String) async {
-        do { try await PhotoLibrarySaver.saveImage(from: remoteString) }
-        catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
+        successMessage = nil
+        do {
+            try await PhotoLibrarySaver.saveImage(from: remoteString)
+            successMessage = "Saved photo to your library."
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     func saveLivePhoto(imageRemoteString: String, videoRemoteString: String) async {
-        do { try await PhotoLibrarySaver.saveLivePhoto(imageRemoteString: imageRemoteString, videoRemoteString: videoRemoteString) }
-        catch { errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription }
+        successMessage = nil
+        do {
+            try await PhotoLibrarySaver.saveLivePhoto(imageRemoteString: imageRemoteString, videoRemoteString: videoRemoteString)
+            successMessage = "Saved native Live Photo to your library."
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     var hasVideoResult: Bool { videoURL != nil && images.isEmpty }
     var hasSlideshowResult: Bool { !images.isEmpty }
+    var livePhotoReadyItems: [ScraperLivePhotoItem] { livePhotoItems.filter { $0.motion != nil } }
 }

@@ -106,9 +106,7 @@ struct AppChrome<Content: View>: View {
 
             content
         }
-        .onAppear {
-            glowShift = true
-        }
+        .onAppear { glowShift = true }
     }
 }
 
@@ -159,6 +157,54 @@ struct FloatingResultCard<Content: View>: View {
     }
 }
 
+struct LiquidGlassGroup<Content: View>: View {
+    let spacing: CGFloat
+    let content: Content
+
+    init(spacing: CGFloat, @ViewBuilder content: () -> Content) {
+        self.spacing = spacing
+        self.content = content()
+    }
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) {
+                content
+            }
+        } else {
+            content
+        }
+    }
+}
+
+struct LiquidGlassCapsule<Content: View>: View {
+    let paddingX: CGFloat
+    let paddingY: CGFloat
+    let content: Content
+
+    init(paddingX: CGFloat = 14, paddingY: CGFloat = 12, @ViewBuilder content: () -> Content) {
+        self.paddingX = paddingX
+        self.paddingY = paddingY
+        self.content = content()
+    }
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            content
+                .padding(.horizontal, paddingX)
+                .padding(.vertical, paddingY)
+                .background(Color.white.opacity(0.001))
+                .glassEffect(.regular, in: Capsule())
+        } else {
+            content
+                .padding(.horizontal, paddingX)
+                .padding(.vertical, paddingY)
+                .background(AppPalette.panelStrong)
+                .clipShape(Capsule())
+        }
+    }
+}
+
 struct MotionReveal: ViewModifier {
     let delay: Double
     @State private var visible = false
@@ -203,15 +249,7 @@ struct GlassSurfaceModifier: ViewModifier {
 }
 
 extension View {
-    func cardStyle() -> some View {
-        glassSurface(cornerRadius: 20)
-    }
-
-    func motionReveal(delay: Double = 0) -> some View {
-        modifier(MotionReveal(delay: delay))
-    }
-
-    func glassSurface(cornerRadius: CGFloat) -> some View {
-        modifier(GlassSurfaceModifier(cornerRadius: cornerRadius))
-    }
+    func cardStyle() -> some View { glassSurface(cornerRadius: 20) }
+    func motionReveal(delay: Double = 0) -> some View { modifier(MotionReveal(delay: delay)) }
+    func glassSurface(cornerRadius: CGFloat) -> some View { modifier(GlassSurfaceModifier(cornerRadius: cornerRadius)) }
 }

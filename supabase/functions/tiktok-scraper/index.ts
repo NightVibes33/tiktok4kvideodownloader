@@ -112,11 +112,7 @@ function extractQualities(video: any): QualityOption[] {
       const h = br.PlayAddr?.Height || br.playAddr?.Height || br.Height || 0;
       const bitrate = br.Bitrate || br.bitrate || 0;
       const rawLabel = br.GearName || br.QualityType || br.qualityType || '';
-      const codec = (br.CodecType || br.codecType || '').toString().toLowerCase();
-
-      // Skip HEVC/bytevc1 streams (playback issues on many devices)
-      // but KEEP adapt_ H.264/AVC streams — they are muxed with audio and contain HD (1080p/4K)
-      if (codec.includes('bytevc1') || codec.includes('hevc') || codec.includes('h265') || codec.includes('h.265')) continue;
+      // Keep all codecs including HEVC/H.265 to expose higher resolutions (1080p often only available as HEVC)
 
       const label = normalizeQualityLabel(rawLabel, w, h);
       const dedupeKey = `${label}:${w}x${h}`;

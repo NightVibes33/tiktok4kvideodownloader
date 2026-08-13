@@ -1,0 +1,64 @@
+name: yt-dlp metadata probe
+
+on:
+  push:
+    branches:
+      - chatgpt-ytdl-zzLrHzJrSi4
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Install current yt-dlp
+        run: |
+          python3 -m pip install --upgrade yt-dlp
+          yt-dlp --version
+      - name: Probe default extraction
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          yt-dlp --skip-download --no-playlist --print '%(id)s | %(title)s | %(format_id)s' 'https://youtu.be/zzLrHzJrSi4?is=wbz05TfoWkl_cHiM' 2>&1 | tee default.log
+      - name: Probe Android VR guest
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          yt-dlp --skip-download --no-playlist --extractor-args 'youtube:player_client=android_vr' --print '%(id)s | %(title)s | %(format_id)s' 'https://youtu.be/zzLrHzJrSi4?is=wbz05TfoWkl_cHiM' 2>&1 | tee android_vr.log
+      - name: Probe embedded web guest
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          yt-dlp --skip-download --no-playlist --extractor-args 'youtube:player_client=web_embedded' --print '%(id)s | %(title)s | %(format_id)s' 'https://youtu.be/zzLrHzJrSi4?is=wbz05TfoWkl_cHiM' 2>&1 | tee web_embedded.log
+      - name: Probe current public Invidious/Piped APIs
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error
+          urls = [
+            'https://inv.nadeko.net/api/v1/videos/zzLrHzJrSi4',
+            'https://invidious.nerdvpn.de/api/v1/videos/zzLrHzJrSi4',
+            'https://yt.chocolatemoo53.com/api/v1/videos/zzLrHzJrSi4',
+            'https://invidious.tiekoetter.com/api/v1/videos/zzLrHzJrSi4',
+            'https://pipedapi.kavin.rocks/streams/zzLrHzJrSi4',
+          ]
+          for u in urls:
+            print('\n===', u, '===')
+            try:
+              req=urllib.request.Request(u, headers={'User-Agent':'Mozilla/5.0'})
+              with urllib.request.urlopen(req, timeout=25) as r:
+                body=r.read(250000)
+                print('HTTP', r.status, 'bytes', len(body))
+                try:
+                  d=json.loads(body)
+                  if isinstance(d, dict):
+                    print('title=', d.get('title'))
+                    print('formatStreams=', len(d.get('formatStreams',[]) or []), 'adaptiveFormats=', len(d.get('adaptiveFormats',[]) or []), 'videoStreams=', len(d.get('videoStreams',[]) or []), 'audioStreams=', len(d.get('audioStreams',[]) or []))
+                    print('error=', d.get('error'))
+                  else:
+                    print(type(d).__name__)
+                except Exception:
+                  print(body[:500].decode('utf-8','replace'))
+            except Exception as e:
+              print('ERROR', repr(e))
+          PY

@@ -1,4 +1,4 @@
-name: Validate GitHub Pages source
+name: Publish compiled site to GitHub Pages
 
 on:
   push:
@@ -6,14 +6,20 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: legacy-github-pages-publish
+  cancel-in-progress: true
 
 jobs:
-  validate:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -24,14 +30,72 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Validate Vite production build
+      - name: Build the real Lovable/Vite app
         env:
           VITE_BASE_PATH: /tiktok4kvideodownloader/
           VITE_PUBLIC_SITE_URL: https://nightvibes33.github.io/tiktok4kvideodownloader
         run: npm run build
 
-      - name: Verify physical legacy Pages routes
+      - name: Publish compiled output into legacy main root
+        shell: bash
         run: |
-          test -f youtube/index.html
-          test -f 404.html
-          grep -q "YouTube Downloader" youtube/index.html
+          set -euo pipefail
+
+          # GitHub Pages is configured as legacy main:/, so place the compiled
+          # app exactly where that publisher reads it. Source stays in src/ and
+          # index.source.html; only generated web output is exposed at root.
+          rm -rf assets
+          mkdir -p assets
+          cp -R dist/assets/. assets/
+
+          cp dist/index.html index.html
+          cp dist/index.html 404.html
+          touch .nojekyll
+
+          # Copy Vite/public root files (favicon, robots, sitemap, etc.) without
+          # deleting repository source/configuration files.
+          find dist -maxdepth 1 -type f ! -name 'index.html' -print0 | while IFS= read -r -d '' file; do
+            cp "$file" ./
+          done
+
+          # Physical entrypoints make direct GitHub Pages loads return the real
+          # React application instead of GitHub's stock 404 page.
+          routes=(
+            youtube
+            privacy-policy
+            terms
+            about
+            how-to-download
+            profile-analyzer
+            slideshow-downloader
+            ios-shortcut
+            faq
+            supported-formats
+            blog
+          )
+          for route in "${routes[@]}"; do
+            mkdir -p "$route"
+            cp dist/index.html "$route/index.html"
+          done
+
+          # Sanity checks: compiled HTML must reference the generated Vite bundle,
+          # never the raw /src/main.tsx development entrypoint.
+          test -s index.html
+          test -s youtube/index.html
+          test -d assets
+          ! grep -q '/src/main.tsx' index.html
+          grep -q '/tiktok4kvideodownloader/assets/' index.html
+
+      - name: Commit compiled Pages site
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Compiled Pages output is already current."
+            exit 0
+          fi
+          git commit -m "Publish compiled Lovable site to GitHub Pages [skip ci]"
+          git push origin HEAD:main

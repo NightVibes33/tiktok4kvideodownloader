@@ -20,13 +20,16 @@ import BlogPost from "./pages/BlogPost.tsx";
 import YouTubePage from "./pages/YouTube.tsx";
 
 const queryClient = new QueryClient();
+const routerBasename = import.meta.env.BASE_URL === "/"
+  ? undefined
+  : import.meta.env.BASE_URL.replace(/\/$/, "");
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         <Routes>
           <Route element={<SiteLayout />}>
             <Route path="/" element={<Index />} />
@@ -42,7 +45,6 @@ const App = () => (
             <Route path="/supported-formats" element={<SupportedFormats />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
-            
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

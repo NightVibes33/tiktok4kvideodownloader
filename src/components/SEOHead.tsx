@@ -7,7 +7,16 @@ interface SEOHeadProps {
   jsonLd?: object;
 }
 
-const BASE_URL = "https://tiktok4kvideodownloader.lovable.app";
+const configuredBase = (import.meta.env.VITE_PUBLIC_SITE_URL || "").replace(/\/$/, "");
+
+function siteBaseUrl() {
+  if (configuredBase) return configuredBase;
+  if (typeof window !== "undefined") {
+    const basePath = import.meta.env.BASE_URL === "/" ? "" : import.meta.env.BASE_URL.replace(/\/$/, "");
+    return `${window.location.origin}${basePath}`;
+  }
+  return "https://nightvibes33.github.io/tiktok4kvideodownloader";
+}
 
 export default function SEOHead({ title, description, path, jsonLd }: SEOHeadProps) {
   useEffect(() => {
@@ -33,7 +42,7 @@ export default function SEOHead({ title, description, path, jsonLd }: SEOHeadPro
       el.setAttribute("href", href);
     };
 
-    const canonical = `${BASE_URL}${path}`;
+    const canonical = `${siteBaseUrl()}${path}`;
 
     setMeta("name", "description", description);
     setMeta("property", "og:title", title);
@@ -43,8 +52,7 @@ export default function SEOHead({ title, description, path, jsonLd }: SEOHeadPro
     setMeta("name", "twitter:description", description);
     setLink("canonical", canonical);
 
-    // JSON-LD
-    const existingLd = document.querySelector('script[data-seo-ld]');
+    const existingLd = document.querySelector("script[data-seo-ld]");
     if (existingLd) existingLd.remove();
 
     if (jsonLd) {
@@ -56,7 +64,7 @@ export default function SEOHead({ title, description, path, jsonLd }: SEOHeadPro
     }
 
     return () => {
-      const ld = document.querySelector('script[data-seo-ld]');
+      const ld = document.querySelector("script[data-seo-ld]");
       if (ld) ld.remove();
     };
   }, [title, description, path, jsonLd]);

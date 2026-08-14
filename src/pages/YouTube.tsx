@@ -1,12 +1,14 @@
 import YouTubeDownloader from "@/components/YouTubeDownloader";
 import SEOHead from "@/components/SEOHead";
 
+const PUBLIC_SITE = "https://nightvibes33.github.io/tiktok4kvideodownloader";
+
 const webAppJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebApplication",
   "name": "YouTube Video Downloader",
-  "url": "https://tiktok4kvideodownloader.lovable.app/youtube",
-  "description": "Download YouTube videos in HD and 4K quality. Free online tool — paste a link, pick a resolution, save MP4 or M4A audio.",
+  "url": `${PUBLIC_SITE}/youtube`,
+  "description": "Download public YouTube videos you own or have permission to save. Pick a quality and save a verified non-zero MP4 or audio file.",
   "applicationCategory": "MultimediaApplication",
   "operatingSystem": "Any",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
@@ -16,8 +18,8 @@ const webAppJsonLd = {
 const YouTubePage = () => (
   <>
     <SEOHead
-      title="YouTube Video Downloader — Save HD & 4K MP4 Free"
-      description="Download YouTube videos in HD or 4K as MP4, or grab audio-only M4A. Free online downloader — paste a link, pick quality, save instantly. No signup."
+      title="YouTube Video Downloader — Save MP4 or Audio"
+      description="Download public YouTube videos you own or have permission to save. Choose quality, verify the media stream, and save a non-zero MP4 or audio file."
       path="/youtube"
       jsonLd={webAppJsonLd}
     />

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Redirecting…</title>
+  <script>
+    (() => {
+      const base = '/tiktok4kvideodownloader';
+      const path = location.pathname.replace(/\/+$/, '');
+      if (path === base + '/youtube') {
+        location.replace(base + '/youtube/' + location.search + location.hash);
+        return;
+      }
+      if (path === base) {
+        location.replace(base + '/' + location.search + location.hash);
+      }
+    })();
+  </script>
+  <style>body{margin:0;background:#07111f;color:#dbeeff;font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;display:grid;place-items:center;min-height:100vh}main{text-align:center;padding:24px}a{color:#8bc6ff}</style>
+</head>
+<body><main><h1>Page not found</h1><p><a href="/tiktok4kvideodownloader/">Back to the downloader</a></p></main></body>
+</html>

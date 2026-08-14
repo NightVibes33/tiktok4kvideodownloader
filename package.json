@@ -6,7 +6,7 @@
   "scripts": {
     "restore:index": "node -e \"require('fs').copyFileSync('index.source.html','index.html')\"",
     "dev": "npm run restore:index && vite",
-    "build": "npm run restore:index && vite build",
+    "build": "node scripts/build-with-original-youtube-ui.mjs",
     "build:dev": "npm run restore:index && vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",

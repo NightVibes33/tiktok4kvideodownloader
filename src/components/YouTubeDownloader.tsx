@@ -16,11 +16,13 @@ import BuyMeCoffee from "./BuyMeCoffee";
 
 type DownloadKind = "video" | "audio";
 
-type CobaltResponse = {
+type RelayResponse = {
   status?: string;
   url?: string;
   filename?: string;
-  error?: { code?: string };
+  processor?: string;
+  error?: string;
+  failures?: Array<{ processor?: string; error?: string }>;
 };
 
 type DownloadResult = {
@@ -30,17 +32,14 @@ type DownloadResult = {
   kind: DownloadKind;
 };
 
-const BUILD_PRIMARY = (import.meta.env.VITE_COBALT_PRIMARY || "").trim();
-
-const STATIC_PROCESSORS = [
-  "https://api.cobalt.liubquanti.click/",
-  "https://rue-cobalt.xenon.zone/",
-  "https://cobaltapi.cjs.nz/",
-  "https://cobaltapi.kittycat.boo/",
+const BUILD_RELAY = (import.meta.env.VITE_COBALT_RELAY || "").trim();
+const STATIC_RELAYS = [
+  "https://tiktok4kvideodownloader.vercel.app/api/cobalt",
+  "https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt",
 ];
 
-function processorList() {
-  return [...new Set([BUILD_PRIMARY, ...STATIC_PROCESSORS].filter(Boolean).map((url) => url.endsWith("/") ? url : `${url}/`))];
+function relayList() {
+  return [...new Set([BUILD_RELAY, ...STATIC_RELAYS].filter(Boolean))];
 }
 
 function isYouTubeUrl(text: string) {
@@ -104,7 +103,7 @@ export default function YouTubeDownloader() {
   const [result, setResult] = useState<DownloadResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const processors = useMemo(() => processorList(), []);
+  const relays = useMemo(() => relayList(), []);
 
   const paste = useCallback(async () => {
     try {
@@ -162,7 +161,9 @@ export default function YouTubeDownloader() {
         armStallTimer();
         chunks.push(value);
         received += value.byteLength;
-        const pct = targetLength > 0 ? Math.min(94, Math.max(8, (received / targetLength) * 90)) : Math.min(94, 8 + Math.log10(Math.max(received, 1)) * 11);
+        const pct = targetLength > 0
+          ? Math.min(94, Math.max(8, (received / targetLength) * 90))
+          : Math.min(94, 8 + Math.log10(Math.max(received, 1)) * 11);
         setProgress(pct);
         setStage(kind === "video" ? "Downloading video…" : "Downloading audio…");
         setDetail(targetLength > 0 ? `${formatBytes(received)} / ~${formatBytes(targetLength)}` : `${formatBytes(received)} received`);
@@ -182,8 +183,8 @@ export default function YouTubeDownloader() {
 
     setProgress(100);
     setStage("File verified");
-    setDetail(`${formatBytes(file.size)} • ${new URL(processor).hostname}`);
-    setResult({ filename: file.name, size: file.size, processor: new URL(processor).hostname, kind });
+    setDetail(`${formatBytes(file.size)} • ${processor}`);
+    setResult({ filename: file.name, size: file.size, processor, kind });
     await saveFile(file);
     return file;
   }, []);
@@ -204,40 +205,28 @@ export default function YouTubeDownloader() {
     setResult(null);
     setProgress(2);
     setStage("Finding a working processor…");
-    setDetail("Testing the download path before Safari receives a file.");
+    setDetail("The site is requesting media metadata through its JSON relay.");
 
     const failures: string[] = [];
 
-    for (const processor of processors) {
+    for (const relay of relays) {
       try {
         setStage("Requesting media…");
-        setDetail(new URL(processor).hostname);
+        setDetail(new URL(relay).hostname);
         setProgress(5);
 
         const body = kind === "video"
           ? {
               url: trimmed,
               videoQuality: quality,
-              youtubeVideoCodec: "h264",
-              youtubeVideoContainer: "mp4",
               downloadMode: "auto",
-              filenameStyle: "pretty",
-              disableMetadata: false,
-              alwaysProxy: true,
-              localProcessing: "disabled",
             }
           : {
               url: trimmed,
               downloadMode: "audio",
-              audioFormat: "mp3",
-              audioBitrate: "128",
-              filenameStyle: "pretty",
-              disableMetadata: false,
-              alwaysProxy: true,
-              localProcessing: "disabled",
             };
 
-        const response = await fetch(processor, {
+        const response = await fetch(relay, {
           method: "POST",
           headers: {
             Accept: "application/json",
@@ -248,36 +237,34 @@ export default function YouTubeDownloader() {
         });
 
         const text = await response.text();
-        let data: CobaltResponse;
+        let data: RelayResponse;
         try {
-          data = JSON.parse(text) as CobaltResponse;
+          data = JSON.parse(text) as RelayResponse;
         } catch {
-          throw new Error(`API HTTP ${response.status} returned invalid JSON`);
+          throw new Error(`relay HTTP ${response.status} returned invalid JSON`);
         }
 
-        if (!response.ok || data.status === "error") {
-          throw new Error(data.error?.code || `API HTTP ${response.status}`);
-        }
-        if (data.status !== "tunnel" || !data.url) {
-          throw new Error(`unexpected response: ${data.status || "unknown"}`);
+        if (!response.ok || data.status !== "tunnel" || !data.url) {
+          const reason = data.error || data.failures?.map((f) => `${f.processor || "processor"}: ${f.error || "failed"}`).join(", ") || `relay HTTP ${response.status}`;
+          throw new Error(reason);
         }
 
         const filename = normalizeFilename(data.filename, kind);
-        await fetchMediaFile(data.url, filename, processor, kind);
+        await fetchMediaFile(data.url, filename, data.processor || "Cobalt", kind);
         setBusy(null);
         return;
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
-        failures.push(`${new URL(processor).hostname}: ${message}`);
+        failures.push(`${new URL(relay).hostname}: ${message}`);
       }
     }
 
     setBusy(null);
     setProgress(0);
     setStage("Download failed");
-    setDetail("Every processor rejected or failed the request.");
+    setDetail("Every relay or processor failed the request.");
     setError(failures.join("\n"));
-  }, [fetchMediaFile, processors, quality, url]);
+  }, [fetchMediaFile, quality, relays, url]);
 
   const disabled = !!busy;
 
@@ -295,7 +282,7 @@ export default function YouTubeDownloader() {
           </h1>
           <p className="text-sm text-dim mt-2 flex items-center justify-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-accent" />
-            Direct browser download • no Supabase YouTube Edge Function
+            GitHub Pages UI • verified browser download
           </p>
         </div>
       </div>
@@ -431,8 +418,8 @@ export default function YouTubeDownloader() {
         <h2 className="text-lg font-bold text-heading text-center">How it works</h2>
         {[
           ["1", "Paste the URL", "Paste a public YouTube video you own or have permission to save."],
-          ["2", "Choose quality", "Pick 1080p, 4K, or another available quality. The downloader automatically tries working processors."],
-          ["3", "Verified save", "The browser receives the media first, rejects empty or stalled streams, verifies the final file is larger than 0 bytes, then opens the normal save/share flow."],
+          ["2", "Choose quality", "Pick 1080p, 4K, or another available quality. A small JSON relay handles the processor's missing browser CORS header."],
+          ["3", "Verified save", "The actual media tunnel goes to your browser. Empty or stalled streams are rejected, and the file must be larger than 0 bytes before save/share starts."],
         ].map(([stepNo, titleText, body]) => (
           <div key={stepNo} className="flex gap-4 p-4 rounded-2xl bg-secondary/40 ring-1 ring-border/40">
             <div className="w-7 h-7 shrink-0 rounded-lg bg-primary/15 text-primary font-mono font-bold text-sm flex items-center justify-center">{stepNo}</div>

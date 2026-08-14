@@ -27,60 +27,73 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Smoke-test exact YouTube video and choose processor
+      - name: Smoke-test exact YouTube video through JSON relay
         shell: bash
         env:
           TEST_URL: https://youtu.be/zzLrHzJrSi4?is=s8lEzsuXpNKlu3sL
           PAGE_ORIGIN: https://nightvibes33.github.io
         run: |
           set -u
-          candidates=(
-            "https://api.cobalt.liubquanti.click/"
-            "https://rue-cobalt.xenon.zone/"
-            "https://cobaltapi.cjs.nz/"
-            "https://cobaltapi.kittycat.boo/"
-            "https://nuko-c.meowing.de/"
+          relays=(
+            "https://tiktok4kvideodownloader.vercel.app/api/cobalt"
+            "https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt"
           )
 
-          payload=$(node -e 'process.stdout.write(JSON.stringify({url:process.env.TEST_URL,videoQuality:"1080",youtubeVideoCodec:"h264",youtubeVideoContainer:"mp4",downloadMode:"auto",filenameStyle:"pretty",disableMetadata:false,alwaysProxy:true,localProcessing:"disabled"}))')
+          payload=$(node -e 'process.stdout.write(JSON.stringify({url:process.env.TEST_URL,videoQuality:"1080",downloadMode:"auto"}))')
           winner=""
 
-          for api in "${candidates[@]}"; do
-            echo "::group::Testing $api"
-            rm -f /tmp/cobalt.json /tmp/cobalt.headers /tmp/media.headers /tmp/media.bin
+          for relay in "${relays[@]}"; do
+            echo "::group::Testing relay $relay"
+            ready=0
+            for attempt in $(seq 1 15); do
+              health=$(curl -sS --connect-timeout 5 --max-time 10 -o /tmp/relay-health.json -w '%{http_code}' -H "Origin: $PAGE_ORIGIN" "$relay" || true)
+              if [[ "$health" == "200" ]] && grep -q '"ok":true' /tmp/relay-health.json 2>/dev/null; then
+                ready=1
+                break
+              fi
+              echo "Relay not ready yet (attempt $attempt/15, HTTP $health)"
+              sleep 2
+            done
 
-            http=$(curl -sS --connect-timeout 10 --max-time 50 \
-              -D /tmp/cobalt.headers \
-              -o /tmp/cobalt.json \
+            if [[ "$ready" != "1" ]]; then
+              echo "Rejected: relay health check never became ready"
+              echo "::endgroup::"
+              continue
+            fi
+
+            rm -f /tmp/relay.json /tmp/relay.headers /tmp/media.headers /tmp/media.bin
+            http=$(curl -sS --connect-timeout 10 --max-time 55 \
+              -D /tmp/relay.headers \
+              -o /tmp/relay.json \
               -w '%{http_code}' \
               -H "Origin: $PAGE_ORIGIN" \
               -H 'Accept: application/json' \
               -H 'Content-Type: application/json' \
               --data "$payload" \
-              "$api" || true)
+              "$relay" || true)
 
-            echo "API HTTP: $http"
-            cat /tmp/cobalt.json 2>/dev/null || true
+            echo "Relay HTTP: $http"
+            cat /tmp/relay.json 2>/dev/null || true
             echo
 
             if [[ "$http" != "200" ]]; then
-              echo "Rejected: API did not return HTTP 200"
+              echo "Rejected: relay did not return HTTP 200"
               echo "::endgroup::"
               continue
             fi
 
-            acao=$(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/cobalt.headers | tail -1)
+            acao=$(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/relay.headers | tail -1)
             if [[ "$acao" != "*" && "$acao" != "$PAGE_ORIGIN" ]]; then
-              echo "Rejected: API CORS is '$acao'"
+              echo "Rejected: relay CORS is '$acao'"
               echo "::endgroup::"
               continue
             fi
 
-            status=$(node -e 'const fs=require("fs"); const j=JSON.parse(fs.readFileSync("/tmp/cobalt.json","utf8")); process.stdout.write(j.status||"")' 2>/dev/null || true)
-            media=$(node -e 'const fs=require("fs"); const j=JSON.parse(fs.readFileSync("/tmp/cobalt.json","utf8")); process.stdout.write(j.url||"")' 2>/dev/null || true)
+            status=$(node -e 'const fs=require("fs"); const j=JSON.parse(fs.readFileSync("/tmp/relay.json","utf8")); process.stdout.write(j.status||"")' 2>/dev/null || true)
+            media=$(node -e 'const fs=require("fs"); const j=JSON.parse(fs.readFileSync("/tmp/relay.json","utf8")); process.stdout.write(j.url||"")' 2>/dev/null || true)
 
             if [[ "$status" != "tunnel" || -z "$media" ]]; then
-              echo "Rejected: expected a tunnel response, got '$status'"
+              echo "Rejected: expected tunnel, got '$status'"
               echo "::endgroup::"
               continue
             fi
@@ -105,24 +118,24 @@ jobs:
             fi
 
             if [[ "$media_acao" != "*" && "$media_acao" != "$PAGE_ORIGIN" ]]; then
-              echo "Rejected: tunnel CORS is '$media_acao'"
+              echo "Rejected: media tunnel CORS is '$media_acao'"
               echo "::endgroup::"
               continue
             fi
 
-            winner="$api"
-            echo "PASS: exact video returned a readable non-zero media stream"
+            winner="$relay"
+            echo "PASS: exact video returned readable non-zero media through the Pages architecture"
             echo "::endgroup::"
             break
           done
 
           if [[ -z "$winner" ]]; then
-            echo "::error::No processor passed the exact-video + CORS + non-zero-media smoke test."
+            echo "::error::No relay passed the exact-video + CORS + non-zero-media smoke test."
             exit 1
           fi
 
-          echo "Selected processor: $winner"
-          echo "VITE_COBALT_PRIMARY=$winner" >> "$GITHUB_ENV"
+          echo "Selected relay: $winner"
+          echo "VITE_COBALT_RELAY=$winner" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci

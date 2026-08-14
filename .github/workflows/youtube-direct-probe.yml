@@ -1,0 +1,59 @@
+name: Probe direct YouTube processors
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/youtube-direct-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe exact video against direct processors
+        shell: bash
+        env:
+          TEST_URL: https://youtu.be/zzLrHzJrSi4?is=s8lEzsuXpNKlu3sL
+          PAGE_ORIGIN: https://nightvibes33.github.io
+        run: |
+          set -u
+          payload=$(node -e 'process.stdout.write(JSON.stringify({url:process.env.TEST_URL,videoQuality:"1080",youtubeVideoCodec:"h264",youtubeVideoContainer:"mp4",downloadMode:"auto",filenameStyle:"pretty",disableMetadata:false,alwaysProxy:true,localProcessing:"disabled"}))')
+          apis=(
+            "https://cobaltapi.kittycat.boo/"
+            "https://rue-cobalt.xenon.zone/"
+            "https://dog.kittycat.boo/"
+          )
+
+          for api in "${apis[@]}"; do
+            echo "::group::$api"
+            rm -f /tmp/api.headers /tmp/api.json /tmp/media.headers /tmp/media.bin /tmp/media.err
+            code=$(curl -sS --connect-timeout 10 --max-time 45 \
+              -D /tmp/api.headers -o /tmp/api.json -w '%{http_code}' \
+              -H "Origin: $PAGE_ORIGIN" \
+              -H 'Accept: application/json' \
+              -H 'Content-Type: application/json' \
+              --data "$payload" "$api" || true)
+            echo "API HTTP: $code"
+            echo "API CORS: $(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/api.headers | tail -1)"
+            cat /tmp/api.json 2>/dev/null || true
+            echo
+
+            media=$(node -e 'const fs=require("fs");try{const j=JSON.parse(fs.readFileSync("/tmp/api.json","utf8"));process.stdout.write((j.status==="tunnel"||j.status==="redirect")?j.url||"":"")}catch{}' || true)
+            if [[ "$code" == "200" && -n "$media" ]]; then
+              set +o pipefail
+              curl -L -sS --connect-timeout 10 --max-time 35 \
+                -D /tmp/media.headers -H "Origin: $PAGE_ORIGIN" "$media" 2>/tmp/media.err | head -c 65536 > /tmp/media.bin
+              set -o pipefail
+              bytes=$(wc -c < /tmp/media.bin | tr -d ' ')
+              echo "Probe bytes: $bytes"
+              echo "Media HTTP: $(awk 'NR==1 {print $2}' /tmp/media.headers | tail -1)"
+              echo "Media CORS: $(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/media.headers | tail -1)"
+              echo "Content-Length: $(awk -F': ' 'tolower($1)=="content-length" {gsub("\r", "", $2); print $2}' /tmp/media.headers | tail -1)"
+              echo "Estimated-Content-Length: $(awk -F': ' 'tolower($1)=="estimated-content-length" {gsub("\r", "", $2); print $2}' /tmp/media.headers | tail -1)"
+              cat /tmp/media.err 2>/dev/null || true
+            fi
+            echo "::endgroup::"
+          done

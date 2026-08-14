@@ -27,98 +27,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Discover and test direct no-auth processors
-        shell: bash
-        env:
-          TEST_URL: https://youtu.be/zzLrHzJrSi4?is=s8lEzsuXpNKlu3sL
-          PAGE_ORIGIN: https://nightvibes33.github.io
-        run: |
-          set -u
-          UA='YT-Pocket-Build/1.0 (+https://github.com/NightVibes33/tiktok4kvideodownloader)'
-
-          echo '::group::Fetch instance metadata'
-          for endpoint in \
-            'https://instances.cobalt.best/instances.json' \
-            'https://instances.cobalt.best/api/instances.json'; do
-            name=$(echo "$endpoint" | sed 's#[^A-Za-z0-9]#_#g')
-            code=$(curl -sS -A "$UA" --connect-timeout 8 --max-time 20 -o "/tmp/$name.json" -w '%{http_code}' "$endpoint" || true)
-            echo "$endpoint -> HTTP $code ($(wc -c < "/tmp/$name.json" 2>/dev/null || echo 0) bytes)"
-          done
-          dir_code=$(curl -sS -A "$UA" --connect-timeout 8 --max-time 20 -o /tmp/cobalt-directory.json -w '%{http_code}' 'https://cobalt.directory/api/working?type=api' || true)
-          echo "cobalt.directory -> HTTP $dir_code"
-          echo '::endgroup::'
-
-          node <<'NODE'
-          const fs = require('fs');
-          const urls = [
-            'https___instances_cobalt_best_instances_json.json',
-            'https___instances_cobalt_best_api_instances_json.json',
-          ].map(n => '/tmp/' + n);
-          let metadata = [];
-          for (const file of urls) {
-            try {
-              const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-              const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.data) ? parsed.data : [];
-              if (list.length) { metadata = list; break; }
-            } catch {}
-          }
-          let directory = {};
-          try { directory = JSON.parse(fs.readFileSync('/tmp/cobalt-directory.json', 'utf8')); } catch {}
-          const host = value => {
-            try { return new URL(String(value).includes('://') ? value : `https://${value}`).hostname.toLowerCase(); }
-            catch { return ''; }
-          };
-          const working = new Set((directory?.data?.youtube || []).map(host).filter(Boolean));
-          const eligible = metadata.filter(x => {
-            const h = host(x?.api);
-            return h && working.has(h) && x?.online !== false && x?.services?.youtube === true && x?.info?.auth === false && x?.info?.cors === true;
-          }).map(x => `${x?.protocol === 'http' ? 'http' : 'https'}://${host(x.api)}/`);
-          const unique = [...new Set(eligible)];
-          console.log(`metadata entries: ${metadata.length}`);
-          console.log(`directory YouTube entries: ${working.size}`);
-          console.log(`eligible auth:false + cors:true + YouTube: ${unique.length}`);
-          for (const api of unique) console.log(`ELIGIBLE ${api}`);
-          fs.writeFileSync('/tmp/eligible.txt', unique.join('\n'));
-          NODE
-
-          payload=$(node -e 'process.stdout.write(JSON.stringify({url:process.env.TEST_URL,videoQuality:"1080",youtubeVideoCodec:"h264",youtubeVideoContainer:"mp4",downloadMode:"auto",filenameStyle:"pretty",disableMetadata:false,alwaysProxy:true,localProcessing:"disabled"}))')
-          : > /tmp/passing.txt
-
-          while IFS= read -r api; do
-            [[ -z "$api" ]] && continue
-            echo "::group::Exact-video test $api"
-            rm -f /tmp/api.json /tmp/api.headers /tmp/media.headers /tmp/media.bin
-            http=$(curl -sS -A "$UA" --connect-timeout 10 --max-time 45 -D /tmp/api.headers -o /tmp/api.json -w '%{http_code}' \
-              -H "Origin: $PAGE_ORIGIN" -H 'Accept: application/json' -H 'Content-Type: application/json' --data "$payload" "$api" || true)
-            echo "API HTTP: $http"
-            cat /tmp/api.json 2>/dev/null || true
-            echo
-            acao=$(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/api.headers | tail -1)
-            media=$(node -e 'const fs=require("fs");try{const j=JSON.parse(fs.readFileSync("/tmp/api.json","utf8"));process.stdout.write(j.status==="tunnel"?j.url||"":"")}catch{}' || true)
-            if [[ "$http" == "200" && -n "$media" && ( "$acao" == "*" || "$acao" == "$PAGE_ORIGIN" ) ]]; then
-              set +o pipefail
-              curl -L -sS -A "$UA" --connect-timeout 10 --max-time 35 -D /tmp/media.headers -H "Origin: $PAGE_ORIGIN" "$media" 2>/tmp/media.err | head -c 65536 > /tmp/media.bin
-              set -o pipefail
-              bytes=$(wc -c < /tmp/media.bin | tr -d ' ')
-              media_acao=$(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/media.headers | tail -1)
-              echo "Probe bytes: $bytes; tunnel CORS: ${media_acao:-missing}"
-              if [[ "$bytes" -gt 0 && ( "$media_acao" == "*" || "$media_acao" == "$PAGE_ORIGIN" ) ]]; then
-                echo "$api" >> /tmp/passing.txt
-                echo 'PASS'
-              fi
-            fi
-            echo '::endgroup::'
-          done < /tmp/eligible.txt
-
-          directs=$(paste -sd, /tmp/passing.txt 2>/dev/null || true)
-          echo "VITE_COBALT_DIRECTS=$directs" >> "$GITHUB_ENV"
-          echo 'VITE_COBALT_RELAY=https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt' >> "$GITHUB_ENV"
-          if [[ -n "$directs" ]]; then
-            echo "### Direct YouTube processors: ✅ $directs" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo '### Direct YouTube processors: ⚠️ none passed at build time' >> "$GITHUB_STEP_SUMMARY"
-          fi
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
@@ -133,10 +41,29 @@ jobs:
           cp dist/index.html dist/404.html
           touch dist/.nojekyll
 
+      - name: Switch existing Pages site to Actions publishing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/pages-update.json -w '%{http_code}' \
+            -X PUT \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages" \
+            -d '{"build_type":"workflow"}')
+          echo "Pages update HTTP: $code"
+          cat /tmp/pages-update.json || true
+          echo
+          if [[ "$code" != "200" && "$code" != "204" ]]; then
+            echo "::error::GitHub refused to switch Pages from legacy branch mode to workflow mode."
+            exit 1
+          fi
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4

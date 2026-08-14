@@ -16,13 +16,21 @@ import BuyMeCoffee from "./BuyMeCoffee";
 
 type DownloadKind = "video" | "audio";
 
-type RelayResponse = {
+type CobaltResponse = {
   status?: string;
   url?: string;
   filename?: string;
   processor?: string;
-  error?: string;
+  error?: { code?: string } | string;
   failures?: Array<{ processor?: string; error?: string }>;
+};
+
+type InstanceMetadata = {
+  api?: string;
+  protocol?: string;
+  online?: boolean;
+  services?: { youtube?: boolean | string };
+  info?: { auth?: boolean; cors?: boolean };
 };
 
 type DownloadResult = {
@@ -33,20 +41,53 @@ type DownloadResult = {
 };
 
 const BUILD_RELAY = (import.meta.env.VITE_COBALT_RELAY || "").trim();
+const BUILD_DIRECTS = (import.meta.env.VITE_COBALT_DIRECTS || "")
+  .split(",")
+  .map((value: string) => value.trim())
+  .filter(Boolean);
+
 const STATIC_RELAYS = [
-  "https://tiktok4kvideodownloader.vercel.app/api/cobalt",
   "https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt",
+  "https://tiktok4kvideodownloader.vercel.app/api/cobalt",
 ];
+
+const INSTANCE_METADATA_URLS = [
+  "https://instances.cobalt.best/instances.json",
+  "https://instances.cobalt.best/api/instances.json",
+];
+const WORKING_DIRECTORY_URL = "https://cobalt.directory/api/working?type=api";
 
 function relayList() {
   return [...new Set([BUILD_RELAY, ...STATIC_RELAYS].filter(Boolean))];
 }
 
+function normalizeHost(value: string) {
+  try {
+    const url = new URL(value.includes("://") ? value : `https://${value}`);
+    return url.hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function normalizeApiUrl(value: string, protocol = "https") {
+  const host = normalizeHost(value);
+  if (!host) return "";
+  return `${protocol === "http" ? "http" : "https"}://${host}/`;
+}
+
 function isYouTubeUrl(text: string) {
   try {
-    const u = new URL(text.trim());
-    const host = u.hostname.replace(/^www\./, "").toLowerCase();
-    return host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com") || host === "youtube-nocookie.com" || host.endsWith(".youtube-nocookie.com");
+    const url = new URL(text.trim());
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    return (
+      url.protocol === "https:" &&
+      (host === "youtu.be" ||
+        host === "youtube.com" ||
+        host.endsWith(".youtube.com") ||
+        host === "youtube-nocookie.com" ||
+        host.endsWith(".youtube-nocookie.com"))
+    );
   } catch {
     return false;
   }
@@ -72,6 +113,11 @@ function normalizeFilename(name: string | undefined, kind: DownloadKind) {
   return cleaned || fallback;
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 async function saveFile(file: File) {
   if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
     try {
@@ -90,6 +136,95 @@ async function saveFile(file: File) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
+async function fetchJsonWithTimeout(url: string, timeoutMs = 8_000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function discoverBrowserProcessors() {
+  const failures: string[] = [];
+  let metadata: InstanceMetadata[] = [];
+  let workingHosts = new Set<string>();
+
+  for (const endpoint of INSTANCE_METADATA_URLS) {
+    try {
+      const json = await fetchJsonWithTimeout(endpoint);
+      const list = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
+      if (list.length) {
+        metadata = list as InstanceMetadata[];
+        break;
+      }
+    } catch (error) {
+      failures.push(`${new URL(endpoint).hostname}: ${errorMessage(error)}`);
+    }
+  }
+
+  try {
+    const json = await fetchJsonWithTimeout(WORKING_DIRECTORY_URL);
+    const youtube = Array.isArray(json?.data?.youtube) ? json.data.youtube : [];
+    workingHosts = new Set(youtube.map((value: string) => normalizeHost(value)).filter(Boolean));
+  } catch (error) {
+    failures.push(`${new URL(WORKING_DIRECTORY_URL).hostname}: ${errorMessage(error)}`);
+  }
+
+  const discovered = metadata
+    .filter((instance) => {
+      const host = normalizeHost(instance.api || "");
+      if (!host) return false;
+      if (instance.online === false) return false;
+      if (instance.info?.auth !== false) return false;
+      if (instance.info?.cors !== true) return false;
+      if (instance.services?.youtube !== true) return false;
+      if (workingHosts.size && !workingHosts.has(host)) return false;
+      return true;
+    })
+    .map((instance) => normalizeApiUrl(instance.api || "", instance.protocol || "https"))
+    .filter(Boolean);
+
+  return {
+    processors: [...new Set([...BUILD_DIRECTS, ...discovered])],
+    failures,
+  };
+}
+
+function cobaltRequestBody(url: string, quality: string, kind: DownloadKind) {
+  if (kind === "audio") {
+    return {
+      url,
+      downloadMode: "audio",
+      audioFormat: "mp3",
+      audioBitrate: "128",
+      filenameStyle: "pretty",
+      disableMetadata: false,
+      alwaysProxy: true,
+      localProcessing: "disabled",
+    };
+  }
+
+  return {
+    url,
+    videoQuality: quality,
+    youtubeVideoCodec: "h264",
+    youtubeVideoContainer: "mp4",
+    downloadMode: "auto",
+    filenameStyle: "pretty",
+    disableMetadata: false,
+    alwaysProxy: true,
+    localProcessing: "disabled",
+  };
 }
 
 export default function YouTubeDownloader() {
@@ -166,7 +301,9 @@ export default function YouTubeDownloader() {
           : Math.min(94, 8 + Math.log10(Math.max(received, 1)) * 11);
         setProgress(pct);
         setStage(kind === "video" ? "Downloading video…" : "Downloading audio…");
-        setDetail(targetLength > 0 ? `${formatBytes(received)} / ~${formatBytes(targetLength)}` : `${formatBytes(received)} received`);
+        setDetail(targetLength > 0
+          ? `${formatBytes(received)} / ~${formatBytes(targetLength)}`
+          : `${formatBytes(received)} received`);
       }
     } finally {
       if (stallTimer) window.clearTimeout(stallTimer);
@@ -189,6 +326,90 @@ export default function YouTubeDownloader() {
     return file;
   }, []);
 
+  const requestDirect = useCallback(async (
+    processor: string,
+    videoUrl: string,
+    kind: DownloadKind,
+  ) => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 18_000);
+    try {
+      const response = await fetch(processor, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(cobaltRequestBody(videoUrl, quality, kind)),
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      let data: CobaltResponse;
+      try {
+        data = JSON.parse(text) as CobaltResponse;
+      } catch {
+        throw new Error(`API HTTP ${response.status} returned invalid JSON`);
+      }
+      if (!response.ok || data.status !== "tunnel" || !data.url) {
+        const reason = typeof data.error === "string"
+          ? data.error
+          : data.error?.code || `API HTTP ${response.status}`;
+        throw new Error(reason);
+      }
+      return {
+        url: data.url,
+        filename: normalizeFilename(data.filename, kind),
+        processor: new URL(processor).hostname,
+      };
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }, [quality]);
+
+  const requestRelay = useCallback(async (
+    relay: string,
+    videoUrl: string,
+    kind: DownloadKind,
+  ) => {
+    const response = await fetch(relay, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        url: videoUrl,
+        videoQuality: quality,
+        downloadMode: kind === "audio" ? "audio" : "auto",
+      }),
+      cache: "no-store",
+    });
+
+    const text = await response.text();
+    let data: CobaltResponse;
+    try {
+      data = JSON.parse(text) as CobaltResponse;
+    } catch {
+      throw new Error(`relay HTTP ${response.status} returned invalid JSON`);
+    }
+
+    if (!response.ok || data.status !== "tunnel" || !data.url) {
+      const reason = typeof data.error === "string"
+        ? data.error
+        : data.error?.code ||
+          data.failures?.map((failure) => `${failure.processor || "processor"}: ${failure.error || "failed"}`).join(", ") ||
+          `relay HTTP ${response.status}`;
+      throw new Error(reason);
+    }
+
+    return {
+      url: data.url,
+      filename: normalizeFilename(data.filename, kind),
+      processor: data.processor || new URL(relay).hostname,
+    };
+  }, [quality]);
+
   const startDownload = useCallback(async (kind: DownloadKind) => {
     const trimmed = url.trim();
     if (!trimmed) {
@@ -204,67 +425,57 @@ export default function YouTubeDownloader() {
     setError(null);
     setResult(null);
     setProgress(2);
-    setStage("Finding a working processor…");
-    setDetail("The site is requesting media metadata through its JSON relay.");
+    setStage("Discovering processors…");
+    setDetail("Checking browser-accessible community processors that explicitly advertise no auth and CORS support.");
 
     const failures: string[] = [];
 
-    for (const relay of relays) {
-      try {
-        setStage("Requesting media…");
-        setDetail(new URL(relay).hostname);
-        setProgress(5);
+    try {
+      const discovery = await discoverBrowserProcessors();
+      failures.push(...discovery.failures.map((failure) => `directory: ${failure}`));
 
-        const body = kind === "video"
-          ? {
-              url: trimmed,
-              videoQuality: quality,
-              downloadMode: "auto",
-            }
-          : {
-              url: trimmed,
-              downloadMode: "audio",
-            };
-
-        const response = await fetch(relay, {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
-          cache: "no-store",
-        });
-
-        const text = await response.text();
-        let data: RelayResponse;
-        try {
-          data = JSON.parse(text) as RelayResponse;
-        } catch {
-          throw new Error(`relay HTTP ${response.status} returned invalid JSON`);
-        }
-
-        if (!response.ok || data.status !== "tunnel" || !data.url) {
-          const reason = data.error || data.failures?.map((f) => `${f.processor || "processor"}: ${f.error || "failed"}`).join(", ") || `relay HTTP ${response.status}`;
-          throw new Error(reason);
-        }
-
-        const filename = normalizeFilename(data.filename, kind);
-        await fetchMediaFile(data.url, filename, data.processor || "Cobalt", kind);
-        setBusy(null);
-        return;
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : String(cause);
-        failures.push(`${new URL(relay).hostname}: ${message}`);
+      if (discovery.processors.length) {
+        setDetail(`Found ${discovery.processors.length} eligible browser processor${discovery.processors.length === 1 ? "" : "s"}.`);
       }
+
+      for (const processor of discovery.processors.slice(0, 8)) {
+        try {
+          setStage("Requesting media directly…");
+          setDetail(new URL(processor).hostname);
+          setProgress(5);
+          const media = await requestDirect(processor, trimmed, kind);
+          await fetchMediaFile(media.url, media.filename, media.processor, kind);
+          setBusy(null);
+          return;
+        } catch (cause) {
+          failures.push(`${new URL(processor).hostname}: ${errorMessage(cause)}`);
+        }
+      }
+
+      setStage("Trying fallback relay…");
+      setDetail("Direct browser processors were unavailable; trying the locked-down JSON relay.");
+
+      for (const relay of relays) {
+        try {
+          setProgress(5);
+          const media = await requestRelay(relay, trimmed, kind);
+          await fetchMediaFile(media.url, media.filename, media.processor, kind);
+          setBusy(null);
+          return;
+        } catch (cause) {
+          failures.push(`${new URL(relay).hostname}: ${errorMessage(cause)}`);
+        }
+      }
+    } catch (cause) {
+      failures.push(errorMessage(cause));
     }
 
     setBusy(null);
     setProgress(0);
     setStage("Download failed");
-    setDetail("Every relay or processor failed the request.");
-    setError(failures.join("\n"));
-  }, [fetchMediaFile, quality, relays, url]);
+    setDetail("No eligible processor produced a verified file right now.");
+    setError(failures.length ? failures.join("\n") : "No eligible processor is currently available.");
+  }, [fetchMediaFile, relays, requestDirect, requestRelay, url]);
 
   const disabled = !!busy;
 
@@ -282,7 +493,7 @@ export default function YouTubeDownloader() {
           </h1>
           <p className="text-sm text-dim mt-2 flex items-center justify-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-accent" />
-            GitHub Pages UI • verified browser download
+            Browser discovery • verified non-zero downloads
           </p>
         </div>
       </div>
@@ -298,7 +509,7 @@ export default function YouTubeDownloader() {
               inputMode="url"
               autoComplete="url"
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(event) => setUrl(event.target.value)}
               onFocus={() => { if (!url) void paste(); }}
               placeholder="https://youtu.be/..."
               className="w-full bg-secondary/80 ring-1 ring-border focus:ring-2 focus:ring-primary/50 rounded-2xl py-4 pl-11 pr-11 text-heading placeholder:text-muted-foreground outline-none text-sm"
@@ -306,7 +517,12 @@ export default function YouTubeDownloader() {
             {url && (
               <button
                 type="button"
-                onClick={() => { setUrl(""); setError(null); setResult(null); inputRef.current?.focus(); }}
+                onClick={() => {
+                  setUrl("");
+                  setError(null);
+                  setResult(null);
+                  inputRef.current?.focus();
+                }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-muted-foreground hover:text-heading hover:bg-secondary"
               >
                 <X className="w-4 h-4" />
@@ -327,7 +543,7 @@ export default function YouTubeDownloader() {
           <label className="text-[10px] text-dim uppercase tracking-widest font-mono">Video quality</label>
           <select
             value={quality}
-            onChange={(e) => setQuality(e.target.value)}
+            onChange={(event) => setQuality(event.target.value)}
             disabled={disabled}
             className="w-full appearance-none bg-secondary ring-1 ring-border rounded-xl px-3 py-3 text-sm text-heading outline-none focus:ring-2 focus:ring-primary/50 font-mono"
           >
@@ -380,7 +596,10 @@ export default function YouTubeDownloader() {
           </div>
 
           <div className="h-1.5 rounded-full bg-background/70 overflow-hidden">
-            <div className="h-full bg-primary transition-all duration-200" style={{ width: `${Math.max(0, Math.min(100, progress))}%` }} />
+            <div
+              className="h-full bg-primary transition-all duration-200"
+              style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
+            />
           </div>
 
           {result && (
@@ -418,8 +637,8 @@ export default function YouTubeDownloader() {
         <h2 className="text-lg font-bold text-heading text-center">How it works</h2>
         {[
           ["1", "Paste the URL", "Paste a public YouTube video you own or have permission to save."],
-          ["2", "Choose quality", "Pick 1080p, 4K, or another available quality. A small JSON relay handles the processor's missing browser CORS header."],
-          ["3", "Verified save", "The actual media tunnel goes to your browser. Empty or stalled streams are rejected, and the file must be larger than 0 bytes before save/share starts."],
+          ["2", "Discover safely", "Your browser checks the public community metadata and only considers processors that explicitly report no authentication, CORS support, and working YouTube."],
+          ["3", "Verified save", "The media stream is read before saving. Empty or stalled streams are rejected, and the finished file must be larger than 0 bytes."],
         ].map(([stepNo, titleText, body]) => (
           <div key={stepNo} className="flex gap-4 p-4 rounded-2xl bg-secondary/40 ring-1 ring-border/40">
             <div className="w-7 h-7 shrink-0 rounded-lg bg-primary/15 text-primary font-mono font-bold text-sm flex items-center justify-center">{stepNo}</div>

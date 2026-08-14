@@ -4,24 +4,12 @@ const ALLOWED_ORIGINS = new Set([
   "https://tiktok4kvideodownloader-nc54.vercel.app",
 ]);
 
-const DIRECTORY_URL = "https://cobalt.directory/api/working?type=api";
-const SKIP_HOSTS = new Set([
-  "rue-cobalt.xenon.zone",
-  "nuko-c.meowing.de",
-  "cobaltapi.kittycat.boo",
-  "cobaltapi.cjs.nz",
-]);
-const STATIC_FALLBACKS = [
-  "https://lime.clxxped.lol/",
-  "https://api-cobalt.eversiege.network/",
-  "https://grapefruit.clxxped.lol/",
-  "https://kitty.tame.gg/",
-  "https://subito-c.meowing.de/",
-  "https://cobaltapi.squair.xyz/",
-  "https://apicobalt.mgytr.top/",
-  "https://bergung-api.hoffnungfuerdiezukunft.net/",
-  "https://melon.clxxped.lol/",
+const COBALT_DIRECTORY = "https://cobalt.directory/api/working?type=api";
+const INSTANCE_METADATA_URLS = [
+  "https://instances.cobalt.best/instances.json",
+  "https://instances.cobalt.best/api/instances.json",
 ];
+const USER_AGENT = "YT-Pocket-Relay/1.2 (+https://github.com/NightVibes33/tiktok4kvideodownloader)";
 
 function setCors(req, res) {
   const origin = req.headers.origin || "";
@@ -36,6 +24,15 @@ function setCors(req, res) {
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type,Accept");
   res.setHeader("Cache-Control", "no-store");
+}
+
+function normalizeHost(value) {
+  try {
+    const url = value.includes("://") ? new URL(value) : new URL(`https://${value}`);
+    return url.hostname.toLowerCase();
+  } catch {
+    return "";
+  }
 }
 
 function isYouTubeUrl(raw) {
@@ -90,47 +87,69 @@ function normalizeBody(input) {
   };
 }
 
-async function getWorkingUpstreams() {
+async function fetchJson(url, timeoutMs = 5_000) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 3_500);
-
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(DIRECTORY_URL, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "YT-Pocket-Relay/1.1 (+https://github.com/NightVibes33/tiktok4kvideodownloader)",
-      },
+    const response = await fetch(url, {
+      headers: { Accept: "application/json", "User-Agent": USER_AGENT },
       cache: "no-store",
       signal: controller.signal,
     });
-    if (!response.ok) throw new Error(`directory_http_${response.status}`);
-    const json = await response.json();
-    const youtube = Array.isArray(json?.data?.youtube) ? json.data.youtube : [];
-    const filtered = youtube
-      .map((entry) => {
-        try {
-          const url = new URL(entry);
-          if (url.protocol !== "https:" || SKIP_HOSTS.has(url.hostname)) return null;
-          return url.href.endsWith("/") ? url.href : `${url.href}/`;
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean);
-
-    return [...new Set([...filtered, ...STATIC_FALLBACKS])];
-  } catch {
-    return STATIC_FALLBACKS;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function getDirectoryYouTubeHosts() {
+  const json = await fetchJson(COBALT_DIRECTORY, 4_500);
+  const youtube = Array.isArray(json?.data?.youtube) ? json.data.youtube : [];
+  return new Set(youtube.map(normalizeHost).filter(Boolean));
+}
+
+async function getInstanceMetadata() {
+  let lastError;
+  for (const url of INSTANCE_METADATA_URLS) {
+    try {
+      const json = await fetchJson(url, 4_500);
+      const list = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
+      if (list.length) return list;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError || new Error("instance_metadata_unavailable");
+}
+
+async function getWorkingUpstreams() {
+  const [directoryHosts, metadata] = await Promise.all([
+    getDirectoryYouTubeHosts(),
+    getInstanceMetadata(),
+  ]);
+
+  const eligible = [];
+  for (const instance of metadata) {
+    const host = normalizeHost(instance?.api || "");
+    if (!host || !directoryHosts.has(host)) continue;
+    if (instance?.online === false) continue;
+    if (instance?.services?.youtube !== true) continue;
+    if (instance?.info?.auth !== false) continue;
+    if (instance?.info?.cors !== true) continue;
+
+    const protocol = instance?.protocol === "http" ? "http" : "https";
+    eligible.push(`${protocol}://${host}/`);
+  }
+
+  return [...new Set(eligible)];
 }
 
 async function callUpstream(upstream, body, groupSignal) {
   const controller = new AbortController();
   const abortFromGroup = () => controller.abort();
   groupSignal?.addEventListener("abort", abortFromGroup, { once: true });
-  const timeout = setTimeout(() => controller.abort(), 8_000);
+  const timeout = setTimeout(() => controller.abort(), 10_000);
 
   try {
     const response = await fetch(upstream, {
@@ -138,7 +157,7 @@ async function callUpstream(upstream, body, groupSignal) {
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "YT-Pocket-Relay/1.1 (+https://github.com/NightVibes33/tiktok4kvideodownloader)",
+        "User-Agent": USER_AGENT,
       },
       body: JSON.stringify(body),
       redirect: "follow",
@@ -154,10 +173,8 @@ async function callUpstream(upstream, body, groupSignal) {
     }
 
     if (!response.ok || data?.status === "error") {
-      const code = data?.error?.code || `upstream_http_${response.status}`;
-      throw new Error(code);
+      throw new Error(data?.error?.code || `upstream_http_${response.status}`);
     }
-
     if (data?.status !== "tunnel" || typeof data?.url !== "string") {
       throw new Error(`unexpected_${data?.status || "response"}`);
     }
@@ -204,49 +221,50 @@ async function raceBatch(upstreams, body) {
 export default async function handler(req, res) {
   setCors(req, res);
 
-  if (req.method === "OPTIONS") {
-    return res.status(204).end();
+  if (req.method === "OPTIONS") return res.status(204).end();
+
+  let upstreams = [];
+  let discoveryError;
+  try {
+    upstreams = await getWorkingUpstreams();
+  } catch (error) {
+    discoveryError = error instanceof Error ? error.message : String(error);
   }
 
   if (req.method === "GET") {
-    const upstreams = await getWorkingUpstreams();
     return res.status(200).json({
       ok: true,
       service: "yt-pocket-cobalt-json-relay",
       mediaProxy: false,
-      strategy: "live-directory-race",
+      strategy: "explicit-noauth-cors-intersection",
       upstreamCount: upstreams.length,
-      sample: upstreams.slice(0, 4).map((url) => new URL(url).hostname),
+      sample: upstreams.slice(0, 6).map((url) => new URL(url).hostname),
+      discoveryError,
     });
   }
 
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "method_not_allowed" });
-  }
+  if (req.method !== "POST") return res.status(405).json({ error: "method_not_allowed" });
 
   let body;
   try {
     body = normalizeBody(req.body);
   } catch (error) {
-    return res.status(400).json({
-      error: error instanceof Error ? error.message : "invalid_request",
+    return res.status(400).json({ error: error instanceof Error ? error.message : "invalid_request" });
+  }
+
+  if (!upstreams.length) {
+    return res.status(503).json({
+      error: "no_explicit_noauth_processors_available",
+      discoveryError,
     });
   }
 
-  const upstreams = await getWorkingUpstreams();
   const failures = [];
-
-  // Race small batches so one slow community instance does not block the user,
-  // while keeping request fan-out bounded.
-  for (let offset = 0; offset < Math.min(upstreams.length, 8); offset += 4) {
-    const batch = upstreams.slice(offset, offset + 4);
-    const { result, failures: batchFailures } = await raceBatch(batch, body);
+  for (let offset = 0; offset < Math.min(upstreams.length, 12); offset += 4) {
+    const { result, failures: batchFailures } = await raceBatch(upstreams.slice(offset, offset + 4), body);
     if (result) return res.status(200).json(result);
     failures.push(...batchFailures);
   }
 
-  return res.status(502).json({
-    error: "all_processors_failed",
-    failures,
-  });
+  return res.status(502).json({ error: "all_eligible_processors_failed", failures });
 }

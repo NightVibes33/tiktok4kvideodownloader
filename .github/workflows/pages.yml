@@ -1,4 +1,4 @@
-name: Deploy web app to GitHub Pages
+name: Validate GitHub Pages source
 
 on:
   push:
@@ -7,15 +7,9 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: github-pages
-  cancel-in-progress: true
 
 jobs:
-  build:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,53 +24,14 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Build Vite app for GitHub Pages
+      - name: Validate Vite production build
         env:
           VITE_BASE_PATH: /tiktok4kvideodownloader/
           VITE_PUBLIC_SITE_URL: https://nightvibes33.github.io/tiktok4kvideodownloader
         run: npm run build
 
-      - name: Add SPA fallback for direct routes
+      - name: Verify physical legacy Pages routes
         run: |
-          cp dist/index.html dist/404.html
-          touch dist/.nojekyll
-
-      - name: Switch existing Pages site to Actions publishing
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          code=$(curl -sS -o /tmp/pages-update.json -w '%{http_code}' \
-            -X PUT \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pages" \
-            -d '{"build_type":"workflow"}')
-          echo "Pages update HTTP: $code"
-          cat /tmp/pages-update.json || true
-          echo
-          if [[ "$code" != "200" && "$code" != "204" ]]; then
-            echo "::error::GitHub refused to switch Pages from legacy branch mode to workflow mode."
-            exit 1
-          fi
-
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          test -f youtube/index.html
+          test -f 404.html
+          grep -q "YouTube Downloader" youtube/index.html

@@ -1,59 +1,37 @@
 <!doctype html>
 <html lang="en" class="dark">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#07111f" />
-  <title>YouTube Downloader — TikTok 4K Video Downloader</title>
-  <meta name="description" content="Download YouTube video or audio files you own or have permission to save." />
-  <style>
-    :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text",Inter,system-ui,sans-serif}
-    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -10%,#173557 0,#0b1728 34%,#060b12 75%);color:#f7fbff}
-    .shell{width:min(680px,100%);margin:auto;padding:calc(env(safe-area-inset-top) + 26px) 18px calc(env(safe-area-inset-bottom) + 32px)}
-    .back{display:inline-flex;gap:7px;align-items:center;color:#8ca9c8;text-decoration:none;font-size:13px;margin-bottom:24px}
-    .hero{text-align:center;margin:8px 0 28px}.logo{width:72px;height:72px;border-radius:22px;margin:auto;display:grid;place-items:center;background:linear-gradient(150deg,#dcf1ff,#60a5fa);color:#06101c;font-size:32px;font-weight:900;box-shadow:0 16px 55px #0009}
-    h1{margin:14px 0 5px;font-size:34px;letter-spacing:-1.3px}.sub{color:#89a3bd;font-size:14px}.card{background:#0c1725e8;border:1px solid #ffffff14;border-radius:27px;padding:18px;box-shadow:0 24px 80px #0008;backdrop-filter:blur(22px)}
-    label{display:block;margin:4px 2px 8px;color:#8ea8c2;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em}
-    input,select{width:100%;border:1px solid #ffffff16;background:#07111d;color:#fff;border-radius:16px;padding:15px 14px;font-size:16px;outline:none}input:focus,select:focus{border-color:#60a5fa88}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:13px}button{appearance:none;border:0;width:100%;border-radius:17px;padding:15px;font-size:16px;font-weight:850;margin-top:14px;background:linear-gradient(135deg,#eaf6ff,#83bfff);color:#06101b}button:disabled{opacity:.45}.secondary{background:#17283d;color:#dbeeff;border:1px solid #ffffff12}
-    .status{display:none;margin-top:14px;padding:14px;border-radius:18px;background:#07111d;border:1px solid #ffffff10}.status.show{display:block}.head{display:flex;align-items:center;gap:9px}.dot{width:9px;height:9px;border-radius:50%;background:#7393b3}.dot.work{animation:pulse 1s infinite}.dot.ok{background:#54d68a}.dot.bad{background:#ff7079}@keyframes pulse{50%{opacity:.3;transform:scale(.75)}}
-    .status strong{font-size:14px}.status p{margin:6px 0 0;color:#91a6bc;font-size:12px;line-height:1.48;white-space:pre-wrap;word-break:break-word}.progress{margin-top:12px;height:5px;border-radius:999px;background:#172536;overflow:hidden}.bar{height:100%;width:0;background:#8bc6ff;transition:width .15s linear}
-    .result{display:none;margin-top:14px;padding:14px;border:1px solid #54d68a44;border-radius:18px;background:#0a171f}.result.show{display:block}.meta{display:flex;justify-content:space-between;gap:10px;color:#9db4c9;font-size:12px}.tiny{text-align:center;margin-top:17px;color:#607991;font-size:10px;line-height:1.55}
-  </style>
-</head>
-<body>
-<main class="shell">
-  <a class="back" href="../">← TikTok downloader</a>
-  <section class="hero"><div class="logo">▶</div><h1>YouTube Downloader</h1><div class="sub">GitHub Pages • verified non-zero downloads</div></section>
-  <section class="card">
-    <label for="url">YouTube URL</label>
-    <input id="url" type="url" inputmode="url" autocomplete="url" placeholder="https://youtu.be/..." />
-    <div class="row">
-      <div><label for="quality">Quality</label><select id="quality"><option value="max">Maximum</option><option value="2160">2160p / 4K</option><option value="1440">1440p</option><option value="1080" selected>1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></div>
-      <div><label for="mode">Format</label><select id="mode"><option value="video" selected>MP4 video</option><option value="audio">MP3 audio</option></select></div>
-    </div>
-    <button id="go">Download</button>
-    <div id="status" class="status"><div class="head"><div id="dot" class="dot work"></div><strong id="title">Starting…</strong></div><p id="detail"></p><div class="progress"><div id="bar" class="bar"></div></div></div>
-    <div id="result" class="result"><div class="meta"><span id="filename"></span><span id="filesize"></span></div><button id="save" class="secondary">Save file</button></div>
-  </section>
-  <div class="tiny">The page tries current browser-accessible Cobalt-compatible processors directly from your device and rejects empty or stalled output. Only download media you own or have permission to save.</div>
-</main>
-<script>
-(() => {
-  const PROCESSORS=[
-    'https://cobaltapi.kittycat.boo/',
-    'https://rue-cobalt.xenon.zone/',
-    'https://dog.kittycat.boo/'
-  ];
-  const $=id=>document.getElementById(id);let finalUrl='',finalFile=null;
-  function fmt(b){if(!Number.isFinite(b))return'';const u=['B','KB','MB','GB'];let n=b,i=0;while(n>=1024&&i<u.length-1){n/=1024;i++}return `${n.toFixed(i?1:0)} ${u[i]}`}
-  function stage(h,d='',p=0,k='work'){$('status').classList.add('show');$('title').textContent=h;$('detail').textContent=d;$('bar').style.width=Math.max(0,Math.min(100,p))+'%';$('dot').className='dot '+k}
-  function valid(s){try{const u=new URL(s);const h=u.hostname.replace(/^www\./,'').toLowerCase();return u.protocol==='https:'&&(h==='youtu.be'||h==='youtube.com'||h.endsWith('.youtube.com'))}catch{return false}}
-  async function request(api,url,quality,mode){const c=new AbortController(),t=setTimeout(()=>c.abort(),18000);try{const body=mode==='audio'?{url,downloadMode:'audio',audioFormat:'mp3',audioBitrate:'128',filenameStyle:'pretty',alwaysProxy:true,localProcessing:'disabled'}:{url,videoQuality:quality,youtubeVideoCodec:'h264',youtubeVideoContainer:'mp4',downloadMode:'auto',filenameStyle:'pretty',alwaysProxy:true,localProcessing:'disabled'};const r=await fetch(api,{method:'POST',headers:{Accept:'application/json','Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store',signal:c.signal});const text=await r.text();let j;try{j=JSON.parse(text)}catch{throw new Error(`HTTP ${r.status} returned non-JSON`)}if(!r.ok||j.status!=='tunnel'||!j.url){throw new Error(typeof j.error==='string'?j.error:(j.error&&j.error.code)||`HTTP ${r.status}`)}return{url:j.url,filename:j.filename||((mode==='audio')?'youtube-audio.mp3':'youtube-video.mp4')}}finally{clearTimeout(t)}}
-  async function download(media,name,processor,mode){const c=new AbortController();let timer;const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>c.abort(),25000)};arm();const r=await fetch(media,{cache:'no-store',signal:c.signal});if(!r.ok)throw new Error(`media HTTP ${r.status}`);if(!r.body)throw new Error('processor returned no media body');const target=Number(r.headers.get('content-length')||r.headers.get('estimated-content-length')||0),reader=r.body.getReader(),chunks=[];let got=0;try{while(true){const {done,value}=await reader.read();if(done)break;if(!value||!value.byteLength)continue;arm();chunks.push(value);got+=value.byteLength;const p=target?Math.min(95,8+(got/target)*87):Math.min(95,8+Math.log10(Math.max(got,1))*11);stage('Downloading…',target?`${fmt(got)} / ~${fmt(target)}`:`${fmt(got)} received`,p)}}finally{clearTimeout(timer);reader.releaseLock()}if(got<=0)throw new Error('processor completed with 0 bytes');const type=r.headers.get('content-type')||(mode==='audio'?'audio/mpeg':'video/mp4'),blob=new Blob(chunks,{type});if(blob.size<=0)throw new Error('safety check rejected a 0-byte file');finalFile=new File([blob],name,{type,lastModified:Date.now()});if(finalFile.size<=0)throw new Error('final file is 0 bytes');finalUrl=URL.createObjectURL(finalFile);$('filename').textContent=finalFile.name;$('filesize').textContent=fmt(finalFile.size);$('result').classList.add('show');stage('File verified',`${fmt(finalFile.size)} • ${processor}`,100,'ok')}
-  async function run(){const url=$('url').value.trim(),quality=$('quality').value,mode=$('mode').value;if(!valid(url)){stage('Invalid URL','Enter a valid YouTube URL.',0,'bad');return}if(finalUrl){URL.revokeObjectURL(finalUrl);finalUrl='';finalFile=null}$('result').classList.remove('show');$('go').disabled=true;$('go').textContent='Working…';const failures=[];for(const api of PROCESSORS){try{const host=new URL(api).hostname;stage('Requesting media…',host,5);const m=await request(api,url,quality,mode);await download(m.url,m.filename,host,mode);$('go').disabled=false;$('go').textContent='Download another';return}catch(e){failures.push(`${new URL(api).hostname}: ${e&&e.message?e.message:String(e)}`)}}stage('Download failed',failures.join('\n'),0,'bad');$('go').disabled=false;$('go').textContent='Try again'}
-  $('go').addEventListener('click',run);$('save').addEventListener('click',async()=>{if(!finalFile||!finalUrl)return;try{if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[finalFile]}))){await navigator.share({files:[finalFile]});return}}catch{}const a=document.createElement('a');a.href=finalUrl;a.download=finalFile.name;document.body.appendChild(a);a.click();a.remove()});
-})();
-</script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <link rel="icon" type="image/x-icon" href="/tiktok4kvideodownloader/favicon.jpeg">
+    <link rel="preload" as="image" href="/tiktok4kvideodownloader/assets/tiktok-logo-optimized-9xqZnBrr.webp" type="image/webp">
+    <title>TikTok 4K Video Downloader — Download HD Videos Without Watermark</title>
+    <meta name="description" content="Download TikTok videos in 4K HD quality without watermark. Free online tool — paste a link, pick quality, save MP4 instantly. No signup required.">
+    <link rel="canonical" href="https://tiktok4kvideodownloader.lovable.app/" />
+    <meta name="robots" content="index, follow" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://ejqqrsxnxunfnmjwtrcp.supabase.co" />
+
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" /></noscript>
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="TikTok 4K Video Downloader — Download HD Videos Without Watermark">
+    <meta property="og:description" content="Download TikTok videos in 4K HD quality without watermark. Free online tool — paste a link, pick quality, save MP4 instantly.">
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TikTok 4K Video Downloader — Download HD Videos Without Watermark">
+    <meta name="twitter:description" content="Download TikTok videos in 4K HD quality without watermark. Free online tool — paste a link, pick quality, save MP4 instantly.">
+
+    <meta name="google-adsense-account" content="ca-pub-4235657150182076">
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4235657150182076" crossorigin="anonymous"></script>
+    <script type="module" crossorigin src="/tiktok4kvideodownloader/assets/index-XGj1ex2U.js"></script>
+    <link rel="stylesheet" crossorigin href="/tiktok4kvideodownloader/assets/index-qMBExUZC.css">
+  </head>
+
+  <body>
+    <div id="root"></div>
+  </body>
 </html>

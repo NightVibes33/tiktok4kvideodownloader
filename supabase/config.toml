@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.tiktok-profile]
 verify_jwt = false
+
+[functions.youtube-scraper]
+verify_jwt = false
+
+[functions.youtube-download]
+verify_jwt = false

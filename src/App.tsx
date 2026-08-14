@@ -17,6 +17,7 @@ import FAQ from "./pages/FAQ.tsx";
 import SupportedFormats from "./pages/SupportedFormats.tsx";
 import Blog from "./pages/Blog.tsx";
 import BlogPost from "./pages/BlogPost.tsx";
+import YouTubePage from "./pages/YouTube.tsx";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
         <Routes>
           <Route element={<SiteLayout />}>
             <Route path="/" element={<Index />} />
+            <Route path="/youtube" element={<YouTubePage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/about" element={<About />} />

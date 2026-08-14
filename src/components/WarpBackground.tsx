@@ -1,7 +1,26 @@
 import { Suspense } from "react";
 import { Warp } from "@paper-design/shaders-react";
 
-export default function WarpBackground() {
+const PALETTES = {
+  pink: [
+    "hsl(330, 100%, 70%)",
+    "hsl(340, 100%, 58%)",
+    "hsl(325, 100%, 72%)",
+    "hsl(335, 100%, 62%)",
+  ],
+  babyBlue: [
+    "hsl(200, 100%, 78%)",
+    "hsl(208, 95%, 66%)",
+    "hsl(192, 100%, 80%)",
+    "hsl(215, 90%, 70%)",
+  ],
+} as const;
+
+export default function WarpBackground({
+  variant = "pink",
+}: {
+  variant?: keyof typeof PALETTES;
+}) {
   return (
     <div
       aria-hidden="true"
@@ -11,12 +30,7 @@ export default function WarpBackground() {
         <Suspense fallback={<div className="h-full w-full bg-background" />}>
           <Warp
             style={{ width: "100%", height: "100%" }}
-            colors={[
-              "hsl(330, 100%, 70%)",
-              "hsl(340, 100%, 58%)",
-              "hsl(325, 100%, 72%)",
-              "hsl(335, 100%, 62%)",
-            ]}
+            colors={[...PALETTES[variant]]}
             proportion={0.45}
             softness={1}
             distortion={0.25}

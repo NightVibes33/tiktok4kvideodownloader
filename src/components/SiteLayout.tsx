@@ -3,6 +3,7 @@ import WarpBackground from "./WarpBackground";
 
 const navLinks = [
   { to: "/", label: "Home" },
+  { to: "/youtube", label: "YouTube" },
   { to: "/slideshow-downloader", label: "Slideshows" },
   { to: "/profile-analyzer", label: "Analyzer" },
   { to: "/how-to-download", label: "How To" },
@@ -12,6 +13,7 @@ const navLinks = [
 
 const footerLinks = [
   { to: "/", label: "TikTok Downloader" },
+  { to: "/youtube", label: "YouTube Downloader" },
   { to: "/how-to-download", label: "How to Download" },
   { to: "/slideshow-downloader", label: "Slideshow Downloader" },
   { to: "/profile-analyzer", label: "Profile Analyzer" },
@@ -29,7 +31,7 @@ export default function SiteLayout({ children }: { children?: React.ReactNode })
 
   return (
     <div className="min-h-svh text-foreground flex flex-col relative">
-      <WarpBackground />
+      <WarpBackground variant={location.pathname.startsWith("/youtube") ? "babyBlue" : "pink"} />
 
       {/* Header */}
       <header className="relative z-10 bg-background/80 backdrop-blur-md border-b border-border/50">

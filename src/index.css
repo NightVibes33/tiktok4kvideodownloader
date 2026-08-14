@@ -134,3 +134,16 @@
     font-family: 'JetBrains Mono', monospace;
   }
 }
+
+@layer base {
+  /* Baby-blue theme scope for the YouTube downloader */
+  .theme-youtube {
+    --primary: 205 95% 68%;
+    --primary-foreground: 220 40% 12%;
+    --accent: 190 95% 72%;
+    --accent-foreground: 220 40% 12%;
+    --ring: 205 95% 68%;
+    --glow-primary: 205 95% 68%;
+    --glow-accent: 190 95% 72%;
+  }
+}

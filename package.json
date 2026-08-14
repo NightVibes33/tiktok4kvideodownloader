@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "build:dev": "vite build --mode development",
+    "restore:index": "node -e \"require('fs').copyFileSync('index.source.html','index.html')\"",
+    "dev": "npm run restore:index && vite",
+    "build": "npm run restore:index && vite build",
+    "build:dev": "npm run restore:index && vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
@@ -14,7 +15,7 @@
     "cap:add:ios": "cap add ios",
     "cap:sync": "cap sync ios",
     "cap:open:ios": "cap open ios",
-    "ios:build:web": "vite build && cap sync ios"
+    "ios:build:web": "npm run build && cap sync ios"
   },
   "dependencies": {
     "@capacitor/core": "^7.4.3",

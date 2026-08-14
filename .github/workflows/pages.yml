@@ -138,7 +138,7 @@ jobs:
           echo "VITE_COBALT_RELAY=$winner" >> "$GITHUB_ENV"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Build Vite app for GitHub Pages
         env:

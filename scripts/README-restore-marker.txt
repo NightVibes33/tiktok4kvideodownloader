@@ -1,1 +1,0 @@
-This marker exists only to make the source-restore commit trigger the Pages publish workflow. It can be removed after the original Lovable YouTube component has been republished.

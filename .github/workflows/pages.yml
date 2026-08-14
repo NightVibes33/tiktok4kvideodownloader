@@ -35,8 +35,8 @@ jobs:
         run: |
           set -u
           relays=(
-            "https://tiktok4kvideodownloader.vercel.app/api/cobalt"
             "https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt"
+            "https://tiktok4kvideodownloader.vercel.app/api/cobalt"
           )
 
           payload=$(node -e 'process.stdout.write(JSON.stringify({url:process.env.TEST_URL,videoQuality:"1080",downloadMode:"auto"}))')
@@ -45,24 +45,24 @@ jobs:
           for relay in "${relays[@]}"; do
             echo "::group::Testing relay $relay"
             ready=0
-            for attempt in $(seq 1 15); do
+            for attempt in $(seq 1 20); do
               health=$(curl -sS --connect-timeout 5 --max-time 10 -o /tmp/relay-health.json -w '%{http_code}' -H "Origin: $PAGE_ORIGIN" "$relay" || true)
-              if [[ "$health" == "200" ]] && grep -q '"ok":true' /tmp/relay-health.json 2>/dev/null; then
+              if [[ "$health" == "200" ]] && grep -q '"ok":true' /tmp/relay-health.json 2>/dev/null && grep -q '"strategy":"live-directory-race"' /tmp/relay-health.json 2>/dev/null; then
                 ready=1
                 break
               fi
-              echo "Relay not ready yet (attempt $attempt/15, HTTP $health)"
+              echo "Relay new version not ready yet (attempt $attempt/20, HTTP $health)"
               sleep 2
             done
 
             if [[ "$ready" != "1" ]]; then
-              echo "Rejected: relay health check never became ready"
+              echo "Rejected: new relay version never became ready"
               echo "::endgroup::"
               continue
             fi
 
             rm -f /tmp/relay.json /tmp/relay.headers /tmp/media.headers /tmp/media.bin
-            http=$(curl -sS --connect-timeout 10 --max-time 55 \
+            http=$(curl -sS --connect-timeout 10 --max-time 40 \
               -D /tmp/relay.headers \
               -o /tmp/relay.json \
               -w '%{http_code}' \

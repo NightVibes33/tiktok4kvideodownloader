@@ -4,9 +4,23 @@ const ALLOWED_ORIGINS = new Set([
   "https://tiktok4kvideodownloader-nc54.vercel.app",
 ]);
 
-const UPSTREAMS = [
-  "https://api.cobalt.liubquanti.click/",
-  "https://cobaltapi.cjs.nz/",
+const DIRECTORY_URL = "https://cobalt.directory/api/working?type=api";
+const SKIP_HOSTS = new Set([
+  "rue-cobalt.xenon.zone",
+  "nuko-c.meowing.de",
+  "cobaltapi.kittycat.boo",
+  "cobaltapi.cjs.nz",
+]);
+const STATIC_FALLBACKS = [
+  "https://lime.clxxped.lol/",
+  "https://api-cobalt.eversiege.network/",
+  "https://grapefruit.clxxped.lol/",
+  "https://kitty.tame.gg/",
+  "https://subito-c.meowing.de/",
+  "https://cobaltapi.squair.xyz/",
+  "https://apicobalt.mgytr.top/",
+  "https://bergung-api.hoffnungfuerdiezukunft.net/",
+  "https://melon.clxxped.lol/",
 ];
 
 function setCors(req, res) {
@@ -76,9 +90,47 @@ function normalizeBody(input) {
   };
 }
 
-async function callUpstream(upstream, body) {
+async function getWorkingUpstreams() {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25_000);
+  const timeout = setTimeout(() => controller.abort(), 3_500);
+
+  try {
+    const response = await fetch(DIRECTORY_URL, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "YT-Pocket-Relay/1.1 (+https://github.com/NightVibes33/tiktok4kvideodownloader)",
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`directory_http_${response.status}`);
+    const json = await response.json();
+    const youtube = Array.isArray(json?.data?.youtube) ? json.data.youtube : [];
+    const filtered = youtube
+      .map((entry) => {
+        try {
+          const url = new URL(entry);
+          if (url.protocol !== "https:" || SKIP_HOSTS.has(url.hostname)) return null;
+          return url.href.endsWith("/") ? url.href : `${url.href}/`;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    return [...new Set([...filtered, ...STATIC_FALLBACKS])];
+  } catch {
+    return STATIC_FALLBACKS;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function callUpstream(upstream, body, groupSignal) {
+  const controller = new AbortController();
+  const abortFromGroup = () => controller.abort();
+  groupSignal?.addEventListener("abort", abortFromGroup, { once: true });
+  const timeout = setTimeout(() => controller.abort(), 8_000);
 
   try {
     const response = await fetch(upstream, {
@@ -86,7 +138,7 @@ async function callUpstream(upstream, body) {
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "YT-Pocket-Relay/1.0",
+        "User-Agent": "YT-Pocket-Relay/1.1 (+https://github.com/NightVibes33/tiktok4kvideodownloader)",
       },
       body: JSON.stringify(body),
       redirect: "follow",
@@ -118,6 +170,34 @@ async function callUpstream(upstream, body) {
     };
   } finally {
     clearTimeout(timeout);
+    groupSignal?.removeEventListener("abort", abortFromGroup);
+  }
+}
+
+async function raceBatch(upstreams, body) {
+  const groupController = new AbortController();
+  try {
+    const result = await Promise.any(
+      upstreams.map((upstream) =>
+        callUpstream(upstream, body, groupController.signal).catch((error) => {
+          const wrapped = new Error(error instanceof Error ? error.message : String(error));
+          wrapped.processor = new URL(upstream).hostname;
+          throw wrapped;
+        }),
+      ),
+    );
+    groupController.abort();
+    return { result, failures: [] };
+  } catch (error) {
+    groupController.abort();
+    const errors = error instanceof AggregateError ? error.errors : [error];
+    return {
+      result: null,
+      failures: errors.map((item) => ({
+        processor: item?.processor || "unknown",
+        error: item instanceof Error ? item.message : String(item),
+      })),
+    };
   }
 }
 
@@ -129,11 +209,14 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "GET") {
+    const upstreams = await getWorkingUpstreams();
     return res.status(200).json({
       ok: true,
       service: "yt-pocket-cobalt-json-relay",
       mediaProxy: false,
-      upstreamCount: UPSTREAMS.length,
+      strategy: "live-directory-race",
+      upstreamCount: upstreams.length,
+      sample: upstreams.slice(0, 4).map((url) => new URL(url).hostname),
     });
   }
 
@@ -150,17 +233,16 @@ export default async function handler(req, res) {
     });
   }
 
+  const upstreams = await getWorkingUpstreams();
   const failures = [];
-  for (const upstream of UPSTREAMS) {
-    try {
-      const result = await callUpstream(upstream, body);
-      return res.status(200).json(result);
-    } catch (error) {
-      failures.push({
-        processor: new URL(upstream).hostname,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+
+  // Race small batches so one slow community instance does not block the user,
+  // while keeping request fan-out bounded.
+  for (let offset = 0; offset < Math.min(upstreams.length, 8); offset += 4) {
+    const batch = upstreams.slice(offset, offset + 4);
+    const { result, failures: batchFailures } = await raceBatch(batch, body);
+    if (result) return res.status(200).json(result);
+    failures.push(...batchFailures);
   }
 
   return res.status(502).json({

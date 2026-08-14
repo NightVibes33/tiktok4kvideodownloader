@@ -27,79 +27,96 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Smoke-test exact YouTube video through eligible relay
+      - name: Discover and test direct no-auth processors
         shell: bash
         env:
           TEST_URL: https://youtu.be/zzLrHzJrSi4?is=s8lEzsuXpNKlu3sL
           PAGE_ORIGIN: https://nightvibes33.github.io
         run: |
           set -u
-          relays=(
-            "https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt"
-            "https://tiktok4kvideodownloader.vercel.app/api/cobalt"
-          )
-          payload=$(node -e 'process.stdout.write(JSON.stringify({url:process.env.TEST_URL,videoQuality:"1080",downloadMode:"auto"}))')
-          winner=""
-          first_ready=""
+          UA='YT-Pocket-Build/1.0 (+https://github.com/NightVibes33/tiktok4kvideodownloader)'
 
-          for relay in "${relays[@]}"; do
-            echo "::group::Testing $relay"
-            ready=0
-            for attempt in $(seq 1 20); do
-              health=$(curl -sS --connect-timeout 5 --max-time 10 -o /tmp/relay-health.json -w '%{http_code}' -H "Origin: $PAGE_ORIGIN" "$relay" || true)
-              if [[ "$health" == "200" ]] && grep -q '"strategy":"explicit-noauth-cors-intersection"' /tmp/relay-health.json 2>/dev/null; then
-                ready=1
-                [[ -z "$first_ready" ]] && first_ready="$relay"
-                cat /tmp/relay-health.json
-                echo
-                break
-              fi
-              echo "Relay v1.2 not ready (attempt $attempt/20, HTTP $health)"
-              sleep 2
-            done
-
-            if [[ "$ready" != "1" ]]; then
-              echo "::endgroup::"
-              continue
-            fi
-
-            http=$(curl -sS --connect-timeout 10 --max-time 45 \
-              -D /tmp/relay.headers -o /tmp/relay.json -w '%{http_code}' \
-              -H "Origin: $PAGE_ORIGIN" -H 'Accept: application/json' -H 'Content-Type: application/json' \
-              --data "$payload" "$relay" || true)
-            echo "Relay HTTP: $http"
-            cat /tmp/relay.json 2>/dev/null || true
-            echo
-
-            if [[ "$http" == "200" ]]; then
-              media=$(node -e 'const fs=require("fs");const j=JSON.parse(fs.readFileSync("/tmp/relay.json","utf8"));process.stdout.write(j.status==="tunnel"?j.url||"":"")' 2>/dev/null || true)
-              if [[ -n "$media" ]]; then
-                set +o pipefail
-                curl -L -sS --connect-timeout 10 --max-time 35 -D /tmp/media.headers -H "Origin: $PAGE_ORIGIN" "$media" 2>/tmp/media.err | head -c 65536 > /tmp/media.bin
-                set -o pipefail
-                bytes=$(wc -c < /tmp/media.bin | tr -d ' ')
-                media_acao=$(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/media.headers | tail -1)
-                echo "Probe bytes: $bytes"
-                echo "Tunnel CORS: ${media_acao:-missing}"
-                if [[ "$bytes" -gt 0 && ( "$media_acao" == "*" || "$media_acao" == "$PAGE_ORIGIN" ) ]]; then
-                  winner="$relay"
-                  echo "PASS: exact video returned readable non-zero media"
-                  echo "::endgroup::"
-                  break
-                fi
-              fi
-            fi
-            echo "::endgroup::"
+          echo '::group::Fetch instance metadata'
+          for endpoint in \
+            'https://instances.cobalt.best/instances.json' \
+            'https://instances.cobalt.best/api/instances.json'; do
+            name=$(echo "$endpoint" | sed 's#[^A-Za-z0-9]#_#g')
+            code=$(curl -sS -A "$UA" --connect-timeout 8 --max-time 20 -o "/tmp/$name.json" -w '%{http_code}' "$endpoint" || true)
+            echo "$endpoint -> HTTP $code ($(wc -c < "/tmp/$name.json" 2>/dev/null || echo 0) bytes)"
           done
+          dir_code=$(curl -sS -A "$UA" --connect-timeout 8 --max-time 20 -o /tmp/cobalt-directory.json -w '%{http_code}' 'https://cobalt.directory/api/working?type=api' || true)
+          echo "cobalt.directory -> HTTP $dir_code"
+          echo '::endgroup::'
 
-          selected="${winner:-${first_ready:-https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt}}"
-          echo "VITE_COBALT_RELAY=$selected" >> "$GITHUB_ENV"
-          if [[ -n "$winner" ]]; then
-            echo "### YouTube smoke test: ✅ PASS" >> "$GITHUB_STEP_SUMMARY"
-            echo "Exact test video returned non-zero browser-readable media through $winner." >> "$GITHUB_STEP_SUMMARY"
+          node <<'NODE'
+          const fs = require('fs');
+          const urls = [
+            'https___instances_cobalt_best_instances_json.json',
+            'https___instances_cobalt_best_api_instances_json.json',
+          ].map(n => '/tmp/' + n);
+          let metadata = [];
+          for (const file of urls) {
+            try {
+              const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+              const list = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.data) ? parsed.data : [];
+              if (list.length) { metadata = list; break; }
+            } catch {}
+          }
+          let directory = {};
+          try { directory = JSON.parse(fs.readFileSync('/tmp/cobalt-directory.json', 'utf8')); } catch {}
+          const host = value => {
+            try { return new URL(String(value).includes('://') ? value : `https://${value}`).hostname.toLowerCase(); }
+            catch { return ''; }
+          };
+          const working = new Set((directory?.data?.youtube || []).map(host).filter(Boolean));
+          const eligible = metadata.filter(x => {
+            const h = host(x?.api);
+            return h && working.has(h) && x?.online !== false && x?.services?.youtube === true && x?.info?.auth === false && x?.info?.cors === true;
+          }).map(x => `${x?.protocol === 'http' ? 'http' : 'https'}://${host(x.api)}/`);
+          const unique = [...new Set(eligible)];
+          console.log(`metadata entries: ${metadata.length}`);
+          console.log(`directory YouTube entries: ${working.size}`);
+          console.log(`eligible auth:false + cors:true + YouTube: ${unique.length}`);
+          for (const api of unique) console.log(`ELIGIBLE ${api}`);
+          fs.writeFileSync('/tmp/eligible.txt', unique.join('\n'));
+          NODE
+
+          payload=$(node -e 'process.stdout.write(JSON.stringify({url:process.env.TEST_URL,videoQuality:"1080",youtubeVideoCodec:"h264",youtubeVideoContainer:"mp4",downloadMode:"auto",filenameStyle:"pretty",disableMetadata:false,alwaysProxy:true,localProcessing:"disabled"}))')
+          : > /tmp/passing.txt
+
+          while IFS= read -r api; do
+            [[ -z "$api" ]] && continue
+            echo "::group::Exact-video test $api"
+            rm -f /tmp/api.json /tmp/api.headers /tmp/media.headers /tmp/media.bin
+            http=$(curl -sS -A "$UA" --connect-timeout 10 --max-time 45 -D /tmp/api.headers -o /tmp/api.json -w '%{http_code}' \
+              -H "Origin: $PAGE_ORIGIN" -H 'Accept: application/json' -H 'Content-Type: application/json' --data "$payload" "$api" || true)
+            echo "API HTTP: $http"
+            cat /tmp/api.json 2>/dev/null || true
+            echo
+            acao=$(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/api.headers | tail -1)
+            media=$(node -e 'const fs=require("fs");try{const j=JSON.parse(fs.readFileSync("/tmp/api.json","utf8"));process.stdout.write(j.status==="tunnel"?j.url||"":"")}catch{}' || true)
+            if [[ "$http" == "200" && -n "$media" && ( "$acao" == "*" || "$acao" == "$PAGE_ORIGIN" ) ]]; then
+              set +o pipefail
+              curl -L -sS -A "$UA" --connect-timeout 10 --max-time 35 -D /tmp/media.headers -H "Origin: $PAGE_ORIGIN" "$media" 2>/tmp/media.err | head -c 65536 > /tmp/media.bin
+              set -o pipefail
+              bytes=$(wc -c < /tmp/media.bin | tr -d ' ')
+              media_acao=$(awk -F': ' 'tolower($1)=="access-control-allow-origin" {gsub("\r", "", $2); print $2}' /tmp/media.headers | tail -1)
+              echo "Probe bytes: $bytes; tunnel CORS: ${media_acao:-missing}"
+              if [[ "$bytes" -gt 0 && ( "$media_acao" == "*" || "$media_acao" == "$PAGE_ORIGIN" ) ]]; then
+                echo "$api" >> /tmp/passing.txt
+                echo 'PASS'
+              fi
+            fi
+            echo '::endgroup::'
+          done < /tmp/eligible.txt
+
+          directs=$(paste -sd, /tmp/passing.txt 2>/dev/null || true)
+          echo "VITE_COBALT_DIRECTS=$directs" >> "$GITHUB_ENV"
+          echo 'VITE_COBALT_RELAY=https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt' >> "$GITHUB_ENV"
+          if [[ -n "$directs" ]]; then
+            echo "### Direct YouTube processors: ✅ $directs" >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "::warning::No eligible community processor completed the exact-video test right now; publishing the site anyway so runtime discovery can recover when an eligible processor is available."
-            echo "### YouTube smoke test: ⚠️ no eligible processor available at build time" >> "$GITHUB_STEP_SUMMARY"
+            echo '### Direct YouTube processors: ⚠️ none passed at build time' >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Install dependencies

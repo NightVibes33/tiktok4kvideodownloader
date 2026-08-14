@@ -25,14 +25,6 @@ type CobaltResponse = {
   failures?: Array<{ processor?: string; error?: string }>;
 };
 
-type InstanceMetadata = {
-  api?: string;
-  protocol?: string;
-  online?: boolean;
-  services?: { youtube?: boolean | string };
-  info?: { auth?: boolean; cors?: boolean };
-};
-
 type DownloadResult = {
   filename: string;
   size: number;
@@ -46,34 +38,26 @@ const BUILD_DIRECTS = (import.meta.env.VITE_COBALT_DIRECTS || "")
   .map((value: string) => value.trim())
   .filter(Boolean);
 
+// These are currently listed by cobalt.directory as no-Turnstile instances
+// with working YouTube support. Try them from the user's browser first so
+// datacenter Cloudflare blocks on Vercel/GitHub do not become the critical path.
+const STATIC_DIRECT_PROCESSORS = [
+  "https://cobaltapi.kittycat.boo/",
+  "https://rue-cobalt.xenon.zone/",
+  "https://dog.kittycat.boo/",
+];
+
 const STATIC_RELAYS = [
   "https://tiktok4kvideodownloader-nc54.vercel.app/api/cobalt",
   "https://tiktok4kvideodownloader.vercel.app/api/cobalt",
 ];
 
-const INSTANCE_METADATA_URLS = [
-  "https://instances.cobalt.best/instances.json",
-  "https://instances.cobalt.best/api/instances.json",
-];
-const WORKING_DIRECTORY_URL = "https://cobalt.directory/api/working?type=api";
+function directList() {
+  return [...new Set([...BUILD_DIRECTS, ...STATIC_DIRECT_PROCESSORS].filter(Boolean))];
+}
 
 function relayList() {
   return [...new Set([BUILD_RELAY, ...STATIC_RELAYS].filter(Boolean))];
-}
-
-function normalizeHost(value: string) {
-  try {
-    const url = new URL(value.includes("://") ? value : `https://${value}`);
-    return url.hostname.toLowerCase();
-  } catch {
-    return "";
-  }
-}
-
-function normalizeApiUrl(value: string, protocol = "https") {
-  const host = normalizeHost(value);
-  if (!host) return "";
-  return `${protocol === "http" ? "http" : "https"}://${host}/`;
 }
 
 function isYouTubeUrl(text: string) {
@@ -138,68 +122,6 @@ async function saveFile(file: File) {
   setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
-async function fetchJsonWithTimeout(url: string, timeoutMs = 8_000) {
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return await response.json();
-  } finally {
-    window.clearTimeout(timer);
-  }
-}
-
-async function discoverBrowserProcessors() {
-  const failures: string[] = [];
-  let metadata: InstanceMetadata[] = [];
-  let workingHosts = new Set<string>();
-
-  for (const endpoint of INSTANCE_METADATA_URLS) {
-    try {
-      const json = await fetchJsonWithTimeout(endpoint);
-      const list = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : [];
-      if (list.length) {
-        metadata = list as InstanceMetadata[];
-        break;
-      }
-    } catch (error) {
-      failures.push(`${new URL(endpoint).hostname}: ${errorMessage(error)}`);
-    }
-  }
-
-  try {
-    const json = await fetchJsonWithTimeout(WORKING_DIRECTORY_URL);
-    const youtube = Array.isArray(json?.data?.youtube) ? json.data.youtube : [];
-    workingHosts = new Set(youtube.map((value: string) => normalizeHost(value)).filter(Boolean));
-  } catch (error) {
-    failures.push(`${new URL(WORKING_DIRECTORY_URL).hostname}: ${errorMessage(error)}`);
-  }
-
-  const discovered = metadata
-    .filter((instance) => {
-      const host = normalizeHost(instance.api || "");
-      if (!host) return false;
-      if (instance.online === false) return false;
-      if (instance.info?.auth !== false) return false;
-      if (instance.info?.cors !== true) return false;
-      if (instance.services?.youtube !== true) return false;
-      if (workingHosts.size && !workingHosts.has(host)) return false;
-      return true;
-    })
-    .map((instance) => normalizeApiUrl(instance.api || "", instance.protocol || "https"))
-    .filter(Boolean);
-
-  return {
-    processors: [...new Set([...BUILD_DIRECTS, ...discovered])],
-    failures,
-  };
-}
-
 function cobaltRequestBody(url: string, quality: string, kind: DownloadKind) {
   if (kind === "audio") {
     return {
@@ -238,6 +160,7 @@ export default function YouTubeDownloader() {
   const [result, setResult] = useState<DownloadResult | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const directs = useMemo(() => directList(), []);
   const relays = useMemo(() => relayList(), []);
 
   const paste = useCallback(async () => {
@@ -269,6 +192,7 @@ export default function YouTubeDownloader() {
     const response = await fetch(mediaUrl, {
       signal: controller.signal,
       cache: "no-store",
+      mode: "cors",
     });
 
     if (!response.ok) {
@@ -336,6 +260,7 @@ export default function YouTubeDownloader() {
     try {
       const response = await fetch(processor, {
         method: "POST",
+        mode: "cors",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -344,19 +269,22 @@ export default function YouTubeDownloader() {
         cache: "no-store",
         signal: controller.signal,
       });
+
       const text = await response.text();
       let data: CobaltResponse;
       try {
         data = JSON.parse(text) as CobaltResponse;
       } catch {
-        throw new Error(`API HTTP ${response.status} returned invalid JSON`);
+        throw new Error(`API HTTP ${response.status} returned non-JSON (likely a host challenge)`);
       }
+
       if (!response.ok || data.status !== "tunnel" || !data.url) {
         const reason = typeof data.error === "string"
           ? data.error
           : data.error?.code || `API HTTP ${response.status}`;
         throw new Error(reason);
       }
+
       return {
         url: data.url,
         filename: normalizeFilename(data.filename, kind),
@@ -425,57 +353,46 @@ export default function YouTubeDownloader() {
     setError(null);
     setResult(null);
     setProgress(2);
-    setStage("Discovering processors…");
-    setDetail("Checking browser-accessible community processors that explicitly advertise no auth and CORS support.");
+    setStage("Trying direct processors…");
+    setDetail("Connecting from this iPhone directly to current no-Turnstile YouTube processors.");
 
     const failures: string[] = [];
 
-    try {
-      const discovery = await discoverBrowserProcessors();
-      failures.push(...discovery.failures.map((failure) => `directory: ${failure}`));
-
-      if (discovery.processors.length) {
-        setDetail(`Found ${discovery.processors.length} eligible browser processor${discovery.processors.length === 1 ? "" : "s"}.`);
+    for (const processor of directs) {
+      try {
+        setStage("Requesting media directly…");
+        setDetail(new URL(processor).hostname);
+        setProgress(5);
+        const media = await requestDirect(processor, trimmed, kind);
+        await fetchMediaFile(media.url, media.filename, media.processor, kind);
+        setBusy(null);
+        return;
+      } catch (cause) {
+        failures.push(`${new URL(processor).hostname}: ${errorMessage(cause)}`);
       }
+    }
 
-      for (const processor of discovery.processors.slice(0, 8)) {
-        try {
-          setStage("Requesting media directly…");
-          setDetail(new URL(processor).hostname);
-          setProgress(5);
-          const media = await requestDirect(processor, trimmed, kind);
-          await fetchMediaFile(media.url, media.filename, media.processor, kind);
-          setBusy(null);
-          return;
-        } catch (cause) {
-          failures.push(`${new URL(processor).hostname}: ${errorMessage(cause)}`);
-        }
+    setStage("Trying fallback relay…");
+    setDetail("The direct processors were blocked from this browser; trying the existing JSON relays.");
+
+    for (const relay of relays) {
+      try {
+        setProgress(5);
+        const media = await requestRelay(relay, trimmed, kind);
+        await fetchMediaFile(media.url, media.filename, media.processor, kind);
+        setBusy(null);
+        return;
+      } catch (cause) {
+        failures.push(`${new URL(relay).hostname}: ${errorMessage(cause)}`);
       }
-
-      setStage("Trying fallback relay…");
-      setDetail("Direct browser processors were unavailable; trying the locked-down JSON relay.");
-
-      for (const relay of relays) {
-        try {
-          setProgress(5);
-          const media = await requestRelay(relay, trimmed, kind);
-          await fetchMediaFile(media.url, media.filename, media.processor, kind);
-          setBusy(null);
-          return;
-        } catch (cause) {
-          failures.push(`${new URL(relay).hostname}: ${errorMessage(cause)}`);
-        }
-      }
-    } catch (cause) {
-      failures.push(errorMessage(cause));
     }
 
     setBusy(null);
     setProgress(0);
     setStage("Download failed");
-    setDetail("No eligible processor produced a verified file right now.");
-    setError(failures.length ? failures.join("\n") : "No eligible processor is currently available.");
-  }, [fetchMediaFile, relays, requestDirect, requestRelay, url]);
+    setDetail("No processor produced a verified file from this network.");
+    setError(failures.length ? failures.join("\n") : "No processor is currently available.");
+  }, [directs, fetchMediaFile, relays, requestDirect, requestRelay, url]);
 
   const disabled = !!busy;
 
@@ -493,7 +410,7 @@ export default function YouTubeDownloader() {
           </h1>
           <p className="text-sm text-dim mt-2 flex items-center justify-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-accent" />
-            Browser discovery • verified non-zero downloads
+            Direct iPhone processing • verified non-zero downloads
           </p>
         </div>
       </div>
@@ -637,7 +554,7 @@ export default function YouTubeDownloader() {
         <h2 className="text-lg font-bold text-heading text-center">How it works</h2>
         {[
           ["1", "Paste the URL", "Paste a public YouTube video you own or have permission to save."],
-          ["2", "Discover safely", "Your browser checks the public community metadata and only considers processors that explicitly report no authentication, CORS support, and working YouTube."],
+          ["2", "Try from this iPhone", "The page tries current no-Turnstile YouTube processors directly from your browser before any server relay."],
           ["3", "Verified save", "The media stream is read before saving. Empty or stalled streams are rejected, and the finished file must be larger than 0 bytes."],
         ].map(([stepNo, titleText, body]) => (
           <div key={stepNo} className="flex gap-4 p-4 rounded-2xl bg-secondary/40 ring-1 ring-border/40">

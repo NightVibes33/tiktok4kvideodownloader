@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Download, Link2, Loader2, Play, Eye, ChevronDown, Copy, Check, Sparkles, X, ClipboardPaste, Music, Shield, Youtube } from "lucide-react";
 import BuyMeCoffee from "./BuyMeCoffee";
-import { supabase } from "@/integrations/supabase/client";
+import { downloadYouTubeFile, parseYouTubeVideoId, resolveYouTubeForOriginalUI } from "@/lib/youtubeRuntime";
 
 /* ── Types ── */
 
@@ -34,9 +34,7 @@ interface YTData {
 
 /* ── Helpers ── */
 
-function isYouTubeUrl(text: string) {
-  return /^https?:\/\/(www\.|m\.|music\.)?(youtube\.com\/(watch|shorts|embed|live|v)|youtu\.be\/)/i.test(text.trim());
-}
+function isYouTubeUrl(text: string) { return !!parseYouTubeVideoId(text); }
 
 function getQualityTier(q: QualityOption | null): { label: string } | null {
   if (!q) return null;
@@ -79,18 +77,6 @@ function formatDuration(sec: number): string {
     : `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function buildProxyUrl(data: YTData, quality: QualityOption, download = false, audio = false): string {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const ext = audio ? (quality.container === "webm" ? "webm" : "m4a") : quality.container === "webm" ? "webm" : "mp4";
-  const params = new URLSearchParams({
-    videoUrl: quality.url,
-    filename: `youtube-${data.id}.${ext}`,
-    apikey: anonKey,
-  });
-  if (download) params.set("download", "1");
-  return `${supabaseUrl}/functions/v1/youtube-download?${params.toString()}`;
-}
 
 function isIOSDevice(): boolean {
   if (typeof navigator === "undefined") return false;
@@ -100,42 +86,21 @@ function isIOSDevice(): boolean {
 
 /* ── Sub-components ── */
 
-function VideoPreview({ cover, streamUrl }: { cover: string; streamUrl?: string }) {
-  const [playing, setPlaying] = useState(false);
-  const [videoError, setVideoError] = useState(false);
-
-  if (playing && streamUrl && !videoError) {
-    return (
-      <div className="relative w-full md:w-64 aspect-video bg-secondary shrink-0 rounded-xl overflow-hidden">
-        <video
-          src={streamUrl}
-          controls
-          autoPlay
-          playsInline
-          className="w-full h-full object-contain bg-background"
-          onError={() => setVideoError(true)}
-        />
-      </div>
-    );
-  }
-
+function VideoPreview({ cover, watchUrl }: { cover: string; watchUrl: string }) {
   return (
     <div className="relative w-full md:w-64 aspect-video bg-secondary shrink-0 rounded-xl overflow-hidden group/preview">
       {cover && <img src={cover} alt="Video thumbnail" className="w-full h-full object-cover" />}
-      <button
-        onClick={() => streamUrl && setPlaying(true)}
-        className="absolute inset-0 flex items-center justify-center bg-background/30 group-hover/preview:bg-background/50 transition-all duration-300 cursor-pointer"
-        disabled={!streamUrl}
+      <a
+        href={watchUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Watch on YouTube"
+        className="absolute inset-0 flex items-center justify-center bg-background/30 group-hover/preview:bg-background/50 transition-all duration-300"
       >
-        <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center glow-primary transition-transform duration-300 group-hover/preview:scale-110">
+        <div className="w-14 h-14 rounded-full bg-primary/90 flex items-center justify-center glow-primary">
           <Play className="w-6 h-6 text-primary-foreground fill-primary-foreground/50 ml-0.5" />
         </div>
-      </button>
-      {videoError && (
-        <div className="absolute bottom-0 inset-x-0 bg-destructive/90 text-destructive-foreground text-[10px] text-center py-1.5 font-medium">
-          Unplayable — try another quality
-        </div>
-      )}
+      </a>
     </div>
   );
 }
@@ -183,106 +148,92 @@ function QualitySelector({
 }
 
 function DownloadActions({
-  downloadUrl,
-  audioDownloadUrl,
+  sourceUrl,
+  requestedQuality,
   qualityCount,
-  hasAudioTrack,
 }: {
-  downloadUrl: string;
-  audioDownloadUrl: string;
+  sourceUrl: string;
+  requestedQuality: string;
   qualityCount: number;
-  hasAudioTrack: boolean;
 }) {
   const [downloading, setDownloading] = useState(false);
   const [downloadingAudio, setDownloadingAudio] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
-  const saveFrom = useCallback(async (url: string, fallbackName: string) => {
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error("Download failed");
-    const blob = await resp.blob();
-    const file = new File([blob], fallbackName, { type: blob.type });
+  const saveFile = useCallback(async (file: File) => {
     if (isIOSDevice() && navigator.share && navigator.canShare?.({ files: [file] })) {
       try {
-        await navigator.share({ files: [file], title: fallbackName });
+        await navigator.share({ files: [file], title: file.name });
         return;
-      } catch { /* fall through */ }
+      } catch (err) {
+        // A deliberate Share-sheet dismissal must not unexpectedly start a second save.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
     }
-    const objectUrl = URL.createObjectURL(blob);
+    const objectUrl = URL.createObjectURL(file);
     const a = document.createElement("a");
     a.href = objectUrl;
-    a.download = fallbackName;
+    a.download = file.name;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
   }, []);
 
-  const handleDownload = useCallback(async () => {
-    if (!downloadUrl || downloading) return;
-    setDownloading(true);
+  const save = useCallback(async (audio: boolean) => {
+    if (downloading || downloadingAudio) return;
+    audio ? setDownloadingAudio(true) : setDownloading(true);
+    setDownloadError(null);
+    setProgress("Connecting to media processor…");
     try {
-      await saveFrom(downloadUrl, "youtube-video.mp4");
-    } catch {
-      window.open(downloadUrl, "_blank");
+      const file = await downloadYouTubeFile(sourceUrl, requestedQuality, audio, (bytes, total) => {
+        setProgress(bytes ? formatBytes(bytes) + (total ? " / " + formatBytes(total) : "") : "Trying another processor…");
+      });
+      if (!file.size) throw new Error("Received an empty file.");
+      setProgress("Verified " + formatBytes(file.size));
+      await saveFile(file);
+    } catch (error) {
+      setProgress("");
+      setDownloadError(error instanceof Error ? error.message : "The download failed. Try again.");
     } finally {
       setDownloading(false);
-    }
-  }, [downloadUrl, downloading, saveFrom]);
-
-  const handleAudioDownload = useCallback(async () => {
-    if (!audioDownloadUrl || downloadingAudio) return;
-    setDownloadingAudio(true);
-    try {
-      await saveFrom(audioDownloadUrl, "youtube-audio.m4a");
-    } catch {
-      window.open(audioDownloadUrl, "_blank");
-    } finally {
       setDownloadingAudio(false);
     }
-  }, [audioDownloadUrl, downloadingAudio, saveFrom]);
+  }, [sourceUrl, requestedQuality, downloading, downloadingAudio, saveFile]);
 
   const handleCopy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(downloadUrl);
+      await navigator.clipboard.writeText(sourceUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch { /* ignore */ }
-  }, [downloadUrl]);
+    } catch {
+      setDownloadError("Clipboard is unavailable. Copy the URL from the address field.");
+    }
+  }, [sourceUrl]);
 
   return (
     <div className="space-y-3">
-      <button
-        onClick={handleDownload}
-        disabled={!downloadUrl || downloading}
-        className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground rounded-xl font-semibold transition-all ease-expo duration-200 glow-primary hover:shadow-[0_0_30px_hsl(var(--glow-primary)/0.4)]"
-      >
+      <button onClick={() => void save(false)} disabled={downloading || downloadingAudio}
+        className="w-full flex items-center justify-center gap-2.5 py-3.5 bg-primary hover:bg-primary/85 disabled:bg-secondary text-primary-foreground disabled:text-muted-foreground rounded-xl font-semibold transition-all ease-expo duration-200 glow-primary">
         {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-        {downloading ? "Preparing Download" : "Download Video"}
+        {downloading ? "Downloading Video…" : "Download MP4"}
       </button>
-
-      {audioDownloadUrl && (
-        <button
-          onClick={handleAudioDownload}
-          disabled={downloadingAudio}
-          className="w-full flex items-center justify-center gap-2.5 py-3 bg-accent/15 hover:bg-accent/25 text-accent ring-1 ring-accent/30 hover:ring-accent/50 rounded-xl font-semibold text-sm transition-all ease-expo duration-200"
-        >
-          {downloadingAudio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Music className="w-4 h-4" />}
-          {downloadingAudio ? "Preparing Audio" : "Download Audio (M4A)"}
-        </button>
-      )}
-
-      <button
-        onClick={handleCopy}
-        className="w-full flex items-center justify-center gap-2 py-2.5 bg-secondary hover:bg-secondary/80 text-heading rounded-xl text-sm font-medium transition-all ease-expo duration-200 ring-1 ring-border hover:ring-primary/30"
-      >
+      <button onClick={() => void save(true)} disabled={downloading || downloadingAudio}
+        className="w-full flex items-center justify-center gap-2.5 py-3 bg-accent/15 hover:bg-accent/25 text-accent ring-1 ring-accent/30 hover:ring-accent/50 rounded-xl font-semibold text-sm">
+        {downloadingAudio ? <Loader2 className="w-4 h-4 animate-spin" /> : <Music className="w-4 h-4" />}
+        {downloadingAudio ? "Downloading Audio…" : "Download MP3"}
+      </button>
+      <button onClick={() => void handleCopy()}
+        className="w-full flex items-center justify-center gap-2 py-2.5 bg-secondary hover:bg-secondary/80 text-heading rounded-xl text-sm font-medium transition-all ease-expo duration-200 ring-1 ring-border">
         {copied ? <Check className="w-3.5 h-3.5 text-accent" /> : <Copy className="w-3.5 h-3.5" />}
-        {copied ? "Copied!" : "Copy Download Link"}
+        {copied ? "Copied!" : "Copy YouTube Link"}
       </button>
-
-      <p className="text-[10px] text-center text-dim uppercase tracking-widest font-mono">
-        {qualityCount} quality option{qualityCount !== 1 ? "s" : ""}
-        {hasAudioTrack ? " · video + audio" : " · video only stream"}
+      {progress && <p role="status" className="text-xs text-center text-dim">{progress}</p>}
+      {downloadError && <p role="alert" className="text-xs text-destructive break-words">{downloadError}</p>}
+      <p className="text-[10px] text-center text-dim">
+        {qualityCount} requested quality options · actual resolution depends on source and processor
       </p>
     </div>
   );
@@ -318,11 +269,7 @@ export default function YouTubeDownloader() {
     setData(null);
 
     try {
-      const { data: res, error: fnError } = await supabase.functions.invoke("youtube-scraper", {
-        body: { url: trimmed },
-      });
-      if (fnError) throw new Error(fnError.message);
-      if (res?.error) throw new Error(res.error);
+      const res = await resolveYouTubeForOriginalUI(trimmed);
       if (!res?.qualities?.length) {
         throw new Error("No downloadable streams found. The video may be private, age-restricted or region-locked.");
       }
@@ -355,9 +302,7 @@ export default function YouTubeDownloader() {
   const qualities = data?.qualities || [];
   const activeQuality = qualities[selectedQuality] || qualities[0] || null;
   const qualityTier = getQualityTier(activeQuality);
-  const previewUrl = data && activeQuality ? buildProxyUrl(data, activeQuality, false) : "";
-  const downloadUrl = data && activeQuality ? buildProxyUrl(data, activeQuality, true) : "";
-  const audioDownloadUrl = data?.audio ? buildProxyUrl(data, data.audio, true, true) : "";
+  const watchUrl = data ? "https://www.youtube.com/watch?v=" + data.id : "";
 
   return (
     <div className="theme-youtube w-full max-w-xl mx-auto space-y-8 selection:bg-primary/30 selection:text-primary-foreground">
@@ -449,7 +394,7 @@ export default function YouTubeDownloader() {
         <div className="animate-in fade-in slide-in-from-bottom-6 duration-500">
           <div className="surface-elevated rounded-2xl overflow-hidden">
             <div className="flex flex-col md:flex-row">
-              <VideoPreview cover={data.video.cover} streamUrl={previewUrl} />
+              <VideoPreview cover={data.video.cover} watchUrl={watchUrl} />
 
               <div className="flex-1 p-5 sm:p-6 flex flex-col justify-between gap-4">
                 <div className="space-y-4">
@@ -474,11 +419,11 @@ export default function YouTubeDownloader() {
                     </div>
                   )}
 
-                  <div className="flex gap-4 text-[11px] font-mono uppercase tracking-wider text-dim tabular">
-                    <div className="flex items-center gap-1.5">
+                  {typeof data.stats.playCount === "number" && (
+                    <div className="flex gap-4 text-[11px] font-mono uppercase tracking-wider text-dim tabular">
                       <Eye className="w-3 h-3 text-primary" /> {formatCount(data.stats.playCount)} views
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="space-y-3">
@@ -514,10 +459,9 @@ export default function YouTubeDownloader() {
                   />
 
                   <DownloadActions
-                    downloadUrl={downloadUrl}
-                    audioDownloadUrl={audioDownloadUrl}
+                    sourceUrl={watchUrl}
+                    requestedQuality={activeQuality?.url || "1080"}
                     qualityCount={qualities.length}
-                    hasAudioTrack={!!activeQuality?.hasAudio}
                   />
                 </div>
               </div>
@@ -531,8 +475,8 @@ export default function YouTubeDownloader() {
         <div className="grid grid-cols-3 gap-3">
           {[
             { icon: "🎬", title: "Best Quality", desc: "Up to source res" },
-            { icon: "🎧", title: "Audio Only", desc: "Grab the M4A" },
-            { icon: "⚡", title: "Fast & Free", desc: "Instant save" },
+            { icon: "🎧", title: "Audio Only", desc: "Save an MP3" },
+            { icon: "⚡", title: "Verified Files", desc: "Rejects empty downloads" },
           ].map((f) => (
             <div key={f.title} className="text-center p-4 rounded-2xl bg-secondary/50 ring-1 ring-border/50">
               <div className="text-2xl mb-2">{f.icon}</div>
@@ -550,8 +494,8 @@ export default function YouTubeDownloader() {
         <div className="space-y-4">
           {[
             { step: "1", title: "Copy the YouTube Link", desc: "Open YouTube, tap Share on the video and choose \"Copy link\". Full watch URLs, youtu.be short links and Shorts links all work." },
-            { step: "2", title: "Paste & Extract", desc: "Paste the URL above and hit \"Extract\". We read the available streams straight from YouTube and list every resolution we can serve." },
-            { step: "3", title: "Choose Quality & Download", desc: "Pick a resolution and click \"Download Video\". Higher resolutions are stored by YouTube as separate video and audio tracks — those options are labelled \"video only\", and you can grab the matching audio with the Download Audio button." },
+            { step: "2", title: "Load Options", desc: "Paste your video URL and load download options. These are target qualities, not a promise the processor can supply every resolution." },
+            { step: "3", title: "Choose Quality & Download", desc: "Choose a target resolution and press Download MP4, or download an MP3. A fresh stream is resolved when you save. Availability depends on the configured processor." },
           ].map((s) => (
             <div key={s.step} className="flex gap-4 p-4 rounded-2xl bg-secondary/40 ring-1 ring-border/40">
               <div className="w-7 h-7 shrink-0 rounded-lg bg-primary/15 text-primary font-mono font-bold text-sm flex items-center justify-center">

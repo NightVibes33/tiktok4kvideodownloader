@@ -1,0 +1,24 @@
+services:
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:2.0.2
+    restart: unless-stopped
+    # Never publish the unauthenticated token service to the internet.
+    networks: [youtube]
+  youtube:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: "8787"
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set public HTTPS hostname of your tunnel}
+      COBALT_API_KEY: ${COBALT_API_KEY:?Choose an API key and also set on Vercel}
+      DOWNLOAD_TOKEN_SECRET: ${DOWNLOAD_TOKEN_SECRET:?Choose an independent signing secret}
+      POT_SERVER: http://bgutil-provider:4416
+      MAX_CONCURRENT: "2"
+      MAX_BYTES: "4294967296"
+    ports:
+      - "127.0.0.1:8787:8787"
+    depends_on: [bgutil-provider]
+    networks: [youtube]
+networks:
+  youtube:
+    driver: bridge

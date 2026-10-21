@@ -188,12 +188,23 @@ function DownloadActions({
     setDownloadError(null);
     setProgress("Connecting to media processor…");
     try {
-      const file = await downloadYouTubeFile(sourceUrl, requestedQuality, audio, (bytes, total) => {
+      const result = await downloadYouTubeFile(sourceUrl, requestedQuality, audio, (bytes, total) => {
         setProgress(bytes ? formatBytes(bytes) + (total ? " / " + formatBytes(total) : "") : "Trying another processor…");
       });
-      if (!file.size) throw new Error("Received an empty file.");
-      setProgress("Verified " + formatBytes(file.size));
-      await saveFile(file);
+      if ("directDownloadUrl" in result) {
+        setProgress("Download handed to your browser. The server verifies and merges the media before saving.");
+        const a = document.createElement("a");
+        a.href = result.directDownloadUrl;
+        a.rel = "noopener";
+        a.download = "youtube-" + (parseYouTubeVideoId(sourceUrl) || "video") + (audio ? ".mp3" : ".mp4");
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+      if (!result.size) throw new Error("Received an empty file.");
+      setProgress("Verified " + formatBytes(result.size));
+      await saveFile(result);
     } catch (error) {
       setProgress("");
       setDownloadError(error instanceof Error ? error.message : "The download failed. Try again.");

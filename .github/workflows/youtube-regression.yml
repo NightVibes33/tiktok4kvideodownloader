@@ -6,6 +6,8 @@ on:
       - "services/youtube/**"
       - "src/lib/youtubeRuntime.ts"
       - "src/components/YouTubeDownloader.tsx"
+      - "src/components/YouTubeAccountGate.tsx"
+      - "src/pages/YouTube.tsx"
       - ".github/workflows/youtube-regression.yml"
 permissions:
   contents: read
@@ -21,7 +23,10 @@ jobs:
       - run: node --test services/youtube/server.test.cjs
       - run: npm ci
       - run: npm run build
+      - run: npx tsc --noEmit --pretty false
   live-owned-video:
+    # A Google-hosted CI IP may be blocked by YouTube. Run this proof only on demand.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683

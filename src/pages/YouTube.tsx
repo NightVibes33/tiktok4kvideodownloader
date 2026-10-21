@@ -1,4 +1,4 @@
-import YouTubeDownloader from "@/components/YouTubeDownloader";
+import YouTubeAccountGate from "@/components/YouTubeAccountGate";
 import SEOHead from "@/components/SEOHead";
 
 const PUBLIC_SITE = "https://nightvibes33.github.io/tiktok4kvideodownloader";
@@ -18,12 +18,12 @@ const webAppJsonLd = {
 const YouTubePage = () => (
   <>
     <SEOHead
-      title="YouTube Video Downloader — Save MP4 or Audio"
-      description="Download public YouTube videos you own or have permission to save. Choose quality, verify the media stream, and save a non-zero MP4 or audio file."
+      title="YouTube Downloader — Sign in with Google"
+      description="Sign in with Google, connect your YouTube channel read-only and enter a video URL to request an MP4 or MP3 download where available."
       path="/youtube"
       jsonLd={webAppJsonLd}
     />
-    <YouTubeDownloader />
+    <YouTubeAccountGate />
   </>
 );
 

@@ -5,6 +5,12 @@ on:
     paths:
       - "services/youtube/**"
       - "src/lib/youtubeRuntime.ts"
+      - "src/lib/youtubeRuntime.test.ts"
+      - "src/lib/youtube-account.ts"
+      - "src/integrations/lovable/index.ts"
+      - "supabase/functions/youtube-scraper/index.ts"
+      - "package.json"
+      - "package-lock.json"
       - "src/components/YouTubeDownloader.tsx"
       - "src/components/YouTubeAccountGate.tsx"
       - "src/pages/YouTube.tsx"
@@ -24,6 +30,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx tsc --noEmit --pretty false
+      - run: npm test -- --run src/lib/youtubeRuntime.test.ts
   live-owned-video:
     # A Google-hosted CI IP may be blocked by YouTube. Run this proof only on demand.
     if: github.event_name == 'workflow_dispatch'

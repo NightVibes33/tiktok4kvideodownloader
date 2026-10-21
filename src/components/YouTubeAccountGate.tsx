@@ -4,51 +4,38 @@ import { AlertCircle, CheckCircle2, Loader2, LockKeyhole, LogOut, Youtube } from
 import { supabase } from "@/integrations/supabase/client";
 import YouTubeDownloader from "@/components/YouTubeDownloader";
 
-const YOUTUBE_READ_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
-
-type Channel = { id: string; title: string; thumbnail?: string };
-type ChannelState = "loading" | "verified" | "unavailable" | "no-channel" | "not-checked";
-
 function hasGoogleIdentity(session: Session | null): boolean {
   if (!session) return false;
   const providers = session.user.app_metadata?.providers;
-  return session.user.app_metadata?.provider === "google" ||
+  return (
+    session.user.app_metadata?.provider === "google" ||
     (Array.isArray(providers) && providers.includes("google")) ||
-    session.user.identities?.some((identity) => identity.provider === "google") === true;
+    session.user.identities?.some((identity) => identity.provider === "google") === true
+  );
 }
 
-function accountName(session: Session): string {
-  const meta = session.user.user_metadata;
-  return typeof meta?.full_name === "string" && meta.full_name.trim()
-    ? meta.full_name : session.user.email || "Google account";
-}
-
-function YouTubeAccountGate() {
+export default function YouTubeAccountGate() {
   const [session, setSession] = useState<Session | null>(null);
   const [initializing, setInitializing] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [channel, setChannel] = useState<Channel | null>(null);
-  const [channelState, setChannelState] = useState<ChannelState>("not-checked");
 
   useEffect(() => {
     let mounted = true;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (mounted) {
-        setSession(nextSession);
-        setInitializing(false);
-        setError(null);
-      }
+      if (!mounted) return;
+      setSession(nextSession);
+      setInitializing(false);
     });
     void supabase.auth.getSession().then(({ data, error: sessionError }) => {
       if (!mounted) return;
       setSession(data.session);
       setInitializing(false);
-      if (sessionError) setError("Could not restore your sign-in. Please try again.");
+      if (sessionError) setError("Could not restore Google sign-in. Try again.");
     }).catch(() => {
       if (mounted) {
         setInitializing(false);
-        setError("Sign-in is temporarily unavailable.");
+        setError("Google sign-in is temporarily unavailable.");
       }
     });
     return () => { mounted = false; subscription.unsubscribe(); };
@@ -56,150 +43,106 @@ function YouTubeAccountGate() {
 
   const googleLinked = hasGoogleIdentity(session);
 
-  useEffect(() => {
-    const providerToken = googleLinked ? session?.provider_token : undefined;
-    if (!providerToken) {
-      setChannel(null);
-      setChannelState(googleLinked ? "unavailable" : "not-checked");
-      return;
-    }
-    // Only Google receives the user-scoped OAuth token. Never send it to Cobalt,
-    // yt-dlp, logs or a custom backend. Token data stays in this session.
-    const controller = new AbortController();
-    setChannel(null);
-    setChannelState("loading");
-    void fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
-      headers: { Authorization: "Bearer " + providerToken, Accept: "application/json" },
-      cache: "no-store",
-      signal: controller.signal,
-    }).then(async (response) => {
-      if (!response.ok) throw new Error("YouTube channel lookup unavailable");
-      const value = await response.json() as {
-        items?: Array<{ id?: string; snippet?: { title?: string; thumbnails?: { default?: { url?: string } } } }>;
-      };
-      if (controller.signal.aborted) return;
-      const item = value.items?.[0];
-      if (!item?.id || !item?.snippet?.title) {
-        setChannelState("no-channel");
-        return;
-      }
-      setChannel({ id: item.id, title: item.snippet.title, thumbnail: item.snippet.thumbnails?.default?.url });
-      setChannelState("verified");
-    }).catch(() => {
-      if (!controller.signal.aborted) setChannelState("unavailable");
-    });
-    return () => controller.abort();
-  }, [session?.provider_token, googleLinked]);
-
-  const signIn = async () => {
+  async function signIn() {
     if (working) return;
     setWorking(true);
     setError(null);
     try {
-      const callbackUrl = new URL(window.location.href);
-      callbackUrl.search = "";
-      callbackUrl.hash = "";
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+      // Basic Google identity only. No YouTube Data API scope, Google password,
+      // cookies, refresh token, or OAuth credential is sent to a media processor.
+      // For managed Google OAuth, avoid custom scopes that require an app-specific
+      // Google Cloud OAuth consent configuration and verification.
+      const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: callbackUrl.toString(),
-          scopes: YOUTUBE_READ_SCOPE,
-          queryParams: {
-            access_type: "online",
-            prompt: "select_account consent",
-          },
+          redirectTo: window.location.origin + window.location.pathname,
+          queryParams: { prompt: "select_account" },
         },
       });
-      if (oauthError) throw oauthError;
-      // Supabase navigates to Google's real consent screen.
+      if (authError) throw authError;
+      // The browser navigates to Google's hosted sign-in page on success.
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Google sign-in failed.");
+      const message = err instanceof Error ? err.message : "Google sign-in failed.";
+      setError(
+        /missing OAuth secret|provider is not enabled|Unsupported provider/i.test(message)
+          ? "Google authentication is not fully configured in the site's backend yet. Please try again later."
+          : message
+      );
       setWorking(false);
     }
-  };
+  }
 
-  const signOut = async () => {
+  async function signOut() {
     setWorking(true);
     setError(null);
     try {
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) throw signOutError;
-      setChannel(null);
-      setChannelState("not-checked");
+      const { error: authError } = await supabase.auth.signOut();
+      if (authError) throw authError;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign out.");
     } finally {
       setWorking(false);
     }
-  };
+  }
 
   if (initializing) {
-    return <div className="theme-youtube max-w-xl mx-auto flex items-center justify-center gap-2 py-20 text-dim" role="status">
-      <Loader2 className="w-5 h-5 animate-spin" /> Checking your Google sign-in…
-    </div>;
+    return (
+      <div role="status" className="theme-youtube max-w-xl mx-auto py-20 flex justify-center items-center gap-2 text-dim">
+        <Loader2 className="w-5 h-5 animate-spin" /> Checking Google sign-in…
+      </div>
+    );
   }
 
   return (
     <div className="theme-youtube w-full max-w-xl mx-auto space-y-6">
       {googleLinked && session ? (
-        <section aria-label="YouTube account" className="surface-elevated rounded-2xl border border-border p-4 flex items-center gap-3">
+        <section aria-label="Connected Google account" className="surface-elevated rounded-2xl border border-border p-4 flex items-center gap-3">
           {typeof session.user.user_metadata?.avatar_url === "string" ? (
-            <img className="w-10 h-10 rounded-full object-cover" src={session.user.user_metadata.avatar_url} alt="Google account" referrerPolicy="no-referrer" />
+            <img src={session.user.user_metadata.avatar_url} referrerPolicy="no-referrer" alt="Google profile" className="w-10 h-10 object-cover rounded-full" />
           ) : (
-            <div className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/15 text-primary">
-              <Youtube className="w-5 h-5" />
-            </div>
+            <span className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center"><Youtube className="w-5 h-5" /></span>
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-heading truncate">{accountName(session)}</p>
-            {channelState === "verified" && channel ? (
-              <p className="text-xs text-accent flex items-center gap-1 truncate"><CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> YouTube: {channel.title}</p>
-            ) : channelState === "loading" ? (
-              <p className="text-xs text-dim">Checking YouTube channel…</p>
-            ) : (
-              <p className="text-xs text-dim">Google signed in · YouTube channel not verified</p>
-            )}
+            <p className="text-sm font-semibold text-heading truncate">
+              {session.user.user_metadata?.full_name || session.user.email || "Google account"}
+            </p>
+            <p className="text-xs text-accent flex items-center gap-1"><CheckCircle2 className="w-3.5 h-3.5" /> Signed in with Google</p>
           </div>
-          <button onClick={() => void signOut()} disabled={working} type="button"
-            className="shrink-0 flex items-center gap-1.5 py-2 px-3 bg-secondary rounded-xl text-xs font-medium text-heading hover:bg-secondary/80 disabled:opacity-50"
-            aria-label="Sign out of Google account">
+          <button type="button" onClick={() => void signOut()} disabled={working}
+            className="shrink-0 px-3 py-2 rounded-xl text-xs flex gap-1.5 items-center text-heading bg-secondary hover:bg-secondary/80 disabled:opacity-50">
             <LogOut className="w-4 h-4" /> Sign out
           </button>
         </section>
       ) : (
-        <section className="surface-elevated rounded-2xl border border-border p-6 sm:p-8 space-y-5 text-center">
+        <section className="surface-elevated rounded-2xl border border-border px-6 py-8 sm:px-8 space-y-5 text-center">
           <div className="w-16 h-16 mx-auto rounded-2xl bg-primary/10 ring-1 ring-primary/20 flex items-center justify-center">
             <Youtube className="w-9 h-9 text-primary" />
           </div>
           <div className="space-y-2">
             <h2 className="text-xl sm:text-2xl font-bold text-heading">Sign in with YouTube</h2>
-            <p className="text-sm text-body">
-              Continue with your Google account to access the YouTube downloader.
-              We'll request read-only permission to identify your YouTube channel.
-            </p>
+            <p className="text-sm text-body">Continue with Google, then paste a YouTube video or Shorts link and choose a download format.</p>
           </div>
           <button type="button" onClick={() => void signIn()} disabled={working}
-            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/85 disabled:opacity-60 transition-colors">
+            className="w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/85 disabled:opacity-60">
             {working ? <Loader2 className="w-5 h-5 animate-spin" /> : <LockKeyhole className="w-5 h-5" />}
             {working ? "Redirecting to Google…" : "Continue with Google"}
           </button>
-          <p className="text-xs text-dim">Authentication uses Google's sign-in page. Your Google password is never entered into this site.</p>
+          <p className="text-xs text-dim">Google handles the login. This site never asks for your Google password or YouTube cookies.</p>
         </section>
       )}
-      {error && <div role="alert" className="rounded-xl p-3 bg-destructive/10 text-destructive text-sm flex gap-2">
-        <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /><span>{error}</span>
-      </div>}
+      {error && (
+        <div role="alert" className="rounded-xl p-3 bg-destructive/10 text-destructive text-sm flex gap-2">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" /><span>{error}</span>
+        </div>
+      )}
       {googleLinked && (
         <>
           <YouTubeDownloader />
-          <p className="text-xs text-dim text-center px-4">
-            Signing in confirms your Google identity; it does not unlock private or restricted videos
-            or provide YouTube download cookies. Downloads still depend on the available media processor.
+          <p className="text-xs text-center text-dim px-4">
+            Google sign-in confirms your account but does not bypass YouTube restrictions or grant download access to restricted videos.
           </p>
         </>
       )}
     </div>
   );
 }
-
-export default YouTubeAccountGate;

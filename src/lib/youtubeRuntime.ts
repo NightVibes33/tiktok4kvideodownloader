@@ -162,6 +162,13 @@ export async function downloadYouTubeFile(
     try {
       // The API response must be followed immediately: tunnels expire quickly.
       const mediaUrl = await requestTunnel(endpoint, body);
+      const target = new URL(mediaUrl);
+      // Our own yt-dlp engine builds the final file on the server. Stream it
+      // through the browser's native download manager: 4K videos are too large
+      // to accumulate as a Blob in mobile Safari.
+      if (target.pathname === "/download" && target.searchParams.has("token")) {
+        return { directDownloadUrl: mediaUrl };
+      }
       const blob = await readMedia(mediaUrl, audio, onProgress);
       const id = parseYouTubeVideoId(sourceUrl) || "video";
       return new File([blob], "youtube-" + id + (audio ? ".mp3" : ".mp4"), { type: blob.type });

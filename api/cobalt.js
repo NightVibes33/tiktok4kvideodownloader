@@ -262,6 +262,27 @@ export default async function handler(req, res) {
   } catch (error) {
     return res.status(400).json({ error: error instanceof Error ? error.message : "invalid_request" });
   }
+  if (req.body?.action === "info") {
+    if (!configured) return res.status(503).json({ error: "format_metadata_requires_configured_processor" });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 58_000);
+    try {
+      const response = await fetch(new URL("info", configured), {
+        method: "POST",
+        headers: {
+          Accept: "application/json", "Content-Type": "application/json",
+          Authorization: "Api-Key " + (process.env.COBALT_API_KEY || ""),
+        },
+        body: JSON.stringify({ url: body.url }),
+        signal: controller.signal,
+      });
+      const info = await response.json();
+      if (!response.ok) return res.status(502).json({ error: "configured_processor_info_failed", detail: info?.error || "upstream_failed" });
+      return res.status(200).json(info);
+    } catch (error) {
+      return res.status(502).json({ error: "configured_processor_info_failed" });
+    } finally { clearTimeout(timer); }
+  }
   const failures = [];
   if (configured) {
     try {

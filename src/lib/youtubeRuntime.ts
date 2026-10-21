@@ -180,6 +180,35 @@ export async function downloadYouTubeFile(
   throw new Error("No working YouTube processor: " + failures.join(" | "));
 }
 
+interface VerifiedInfo {
+  title?: string;
+  author?: string;
+  cover?: string;
+  duration?: number;
+  heights?: number[];
+}
+async function readVerifiedInfo(sourceUrl: string): Promise<VerifiedInfo | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  try {
+    const relay = relayUrl();
+    const status = await fetch(relay, { cache: "no-store", signal: controller.signal });
+    if (!status.ok || !(await status.json())?.configured) return null;
+    const response = await fetch(relay, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "info", url: sourceUrl }),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as VerifiedInfo;
+    return Array.isArray(data.heights) ? data : null;
+  } catch {
+    return null;
+  } finally { clearTimeout(timer); }
+}
+
 export async function resolveYouTubeForOriginalUI(sourceUrl: string): Promise<YTData> {
   const id = parseYouTubeVideoId(sourceUrl);
   if (!id) throw new Error("Enter a valid YouTube video or Shorts URL.");
@@ -198,10 +227,25 @@ export async function resolveYouTubeForOriginalUI(sourceUrl: string): Promise<YT
       }
     } finally { clearTimeout(timer); }
   } catch { /* YouTube blocks browser metadata CORS on some hosts. */ }
-  const qualities = QUALITY_SPECS.map((s) => ({ ...s, hasAudio: true, container: "mp4" }));
+  const actual = await readVerifiedInfo(sourceUrl);
+  const reportedHeights = actual?.heights?.filter((h) => Number.isFinite(h) && h > 0) || [];
+  const qualities = QUALITY_SPECS
+    .filter((spec) => !actual || spec.url === "max" || reportedHeights.some((h) => h >= Number(spec.url)))
+    .map((spec) => ({
+      ...spec,
+      label: actual && spec.url !== "max" ? "Available up to " + spec.url + "p" : spec.label,
+      hasAudio: true,
+      container: "mp4",
+    }));
   return {
-    id, description: title, author: { username: channel, nickname: channel, avatar: "" },
-    video: { url: "", cover: "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg", duration: 0, ratio: "16:9", width: 0, height: 0 },
+    id,
+    description: actual?.title || title,
+    author: { username: actual?.author || channel, nickname: actual?.author || channel, avatar: "" },
+    video: {
+      url: "",
+      cover: actual?.cover || "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg",
+      duration: actual?.duration || 0, ratio: "16:9", width: 0, height: 0,
+    },
     qualities, audio: { label: "MP3", url: "audio", width: 0, height: 0, bitrate: 128000, hasAudio: true, container: "mp3" },
     stats: {},
   };

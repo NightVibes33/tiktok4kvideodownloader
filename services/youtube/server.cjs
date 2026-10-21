@@ -132,6 +132,47 @@ function runYt(payload, directory, onDisconnect) {
     });
   });
 }
+function inspectVideo(id) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(YTDLP, [
+      "--no-playlist", "--skip-download", "--dump-single-json", "--no-warnings",
+      "--js-runtimes", "node",
+      "--extractor-args", "youtubepot-bgutilhttp:base_url=" + POT_SERVER,
+      "https://www.youtube.com/watch?v=" + id,
+    ], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "", stderr = "", settled = false;
+    const timeout = setTimeout(() => child.kill("SIGTERM"), 55_000);
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk.toString();
+      if (stdout.length > 8_000_000) child.kill("SIGTERM");
+    });
+    child.stderr.on("data", (chunk) => { stderr = (stderr + chunk.toString()).slice(-1200); });
+    child.on("error", (error) => {
+      if (!settled) { settled = true; clearTimeout(timeout); reject(error); }
+    });
+    child.on("close", (exitCode) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (exitCode !== 0) return reject(new Error(stderr.slice(-350) || "video_info_unavailable"));
+      try {
+        const data = JSON.parse(stdout);
+        const heights = [...new Set((data.formats || [])
+          .filter((f) => f.vcodec && f.vcodec !== "none" && f.height > 0)
+          .map((f) => f.height))].sort((a, b) => b - a);
+        resolve({
+          id,
+          title: String(data.title || "YouTube video").slice(0, 250),
+          author: String(data.uploader || data.channel || "YouTube").slice(0, 150),
+          cover: data.thumbnail || "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg",
+          duration: Number(data.duration) || 0,
+          heights,
+        });
+      } catch { reject(new Error("invalid_yt_dlp_metadata")); }
+    });
+  });
+}
+
 async function serveDownload(req, res, rawToken) {
   const payload = decodeToken(rawToken);
   if (!payload) return writeJson(res, 403, { error: "invalid_or_expired_link" });
@@ -191,7 +232,7 @@ const server = http.createServer(async (req, res) => {
       if (!res.headersSent) writeJson(res, 500, { error: "server_error" });
       else res.destroy();
     });
-  if (req.method !== "POST" || url.pathname !== "/") return writeJson(res, 404, { error: "not_found" });
+  if (req.method !== "POST" || !["/", "/info"].includes(url.pathname)) return writeJson(res, 404, { error: "not_found" });
   if (!isAuthorized(req)) return writeJson(res, 401, { error: "unauthorized" });
   if (!PUBLIC_BASE_URL.startsWith("https://") || !TOKEN_SECRET)
     return writeJson(res, 503, { error: "server_not_configured" });
@@ -199,6 +240,13 @@ const server = http.createServer(async (req, res) => {
     const input = await readJson(req);
     const id = videoId(input.url);
     if (!id) return writeJson(res, 400, { error: "invalid_youtube_url" });
+    if (url.pathname === "/info") {
+      if (active >= MAX_CONCURRENT) return writeJson(res, 429, { error: "server_busy" });
+      active++;
+      try { return writeJson(res, 200, await inspectVideo(id)); }
+      catch (err) { return writeJson(res, 502, { error: "video_info_unavailable", detail: String(err.message || err).slice(0,350) }); }
+      finally { active--; }
+    }
     const q = QUALITIES.has(String(input.videoQuality)) ? String(input.videoQuality) : "1080";
     const a = input.downloadMode === "audio";
     const link = new URL(PUBLIC_BASE_URL + "/download");

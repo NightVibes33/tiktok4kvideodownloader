@@ -1,0 +1,21 @@
+name: Verify free YouTube engine Docker image
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "services/youtube/Dockerfile"
+      - "services/youtube/server.cjs"
+      - ".github/workflows/youtube-backend-docker.yml"
+permissions:
+  contents: read
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build yt-dlp, FFmpeg, and PO token-provider runtime
+        run: docker build -t youtube-engine:test services/youtube
+      - name: Check JS syntax and unit tests
+        run: |
+          node --check services/youtube/server.cjs
+          node --test services/youtube/server.test.cjs

@@ -26,7 +26,9 @@ interface CobaltReply {
   url?: string;
   filename?: string;
   error?: string | { code?: string };
+  detail?: string;
 }
+export type YouTubeDownloadResult = File | { directDownloadUrl: string };
 const QUALITY_SPECS = [
   { url: "max", label: "Maximum available", width: 0, height: 0, bitrate: 0 },
   { url: "2160", label: "Up to 2160p (4K)", width: 3840, height: 2160, bitrate: 0 },
@@ -76,13 +78,46 @@ function relayUrl(): string {
   return DEFAULT_RELAY;
 }
 
+/**
+ * Stable, safe user-facing messages for failures from public media processors.
+ * Never display raw signed media URLs or access tokens in errors.
+ */
+export function explainYouTubeFailure(rawCode: string, status = 0): string {
+  const code = String(rawCode || "").toLowerCase();
+  if (/origin_not_allowed|cors|failed to fetch|networkerror|load failed/.test(code)) {
+    return "The download server could not be reached from this site. The site's backend origin/CORS configuration needs attention.";
+  }
+  if (/no_working_processors|no_explicit_noauth|discovery|all_eligible_processors_failed|unexpected_response/.test(code) || status === 503) {
+    return "No YouTube download processor is currently available. Please try again later; the site owner can connect the free self-hosted yt-dlp backend.";
+  }
+  if (/youtube.login|sign in|not a bot|bot|challenge|po.token|po_token|blocked|403/.test(code)) {
+    return "YouTube blocked this processor or requires a verification token. Signing in to this website does not give its download server access to YouTube.";
+  }
+  if (/401|auth|api.key|jwt|turnstile|unauthorized/.test(code)) {
+    return "The selected processor requires authentication. The site's download backend needs to be configured.";
+  }
+  if (/youtube.unavailable|private|age.restricted|video.unavailable|not found|404/.test(code)) {
+    return "This video is unavailable to the download processor (private, removed, or restricted).";
+  }
+  if (/429|rate.limit|too many requests/.test(code)) {
+    return "The download server is busy or rate limited. Please try again later.";
+  }
+  if (/expired|410/.test(code)) {
+    return "The media link expired. Try downloading again to request a fresh link.";
+  }
+  if (/incomplete|zero.byte|invalid mp4|valid mp3|error page/.test(code)) {
+    return "The processor returned incomplete or invalid media. No file was saved.";
+  }
+  return status >= 500
+    ? "The YouTube download server is temporarily unavailable. Please try again later."
+    : "Could not download this YouTube video. The processor may be unavailable or the video may be restricted.";
+}
+
 function errorMessage(data: CobaltReply, status: number): string {
   const code = typeof data.error === "string" ? data.error : data.error?.code;
-  if (!code) return "HTTP " + status;
-  if (/auth|jwt|api.key|turnstile/i.test(code)) return "Processor requires authentication (configure COBALT_API_URL / COBALT_API_KEY on Vercel).";
-  if (/youtube.login|youtube.unavailable|bot/i.test(code)) return "YouTube blocked the processor; try your own configured Cobalt server.";
-  return code;
+  return explainYouTubeFailure(code || data.detail || "", status);
 }
+
 async function requestTunnel(endpoint: string, body: ReturnType<typeof buildCobaltBody>): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 14_000);
@@ -155,7 +190,7 @@ export async function downloadYouTubeFile(
   requestedQuality: string,
   audio: boolean,
   onProgress?: (bytes: number, total: number | null) => void,
-): Promise<File> {
+): Promise<YouTubeDownloadResult> {
   const body = buildCobaltBody(sourceUrl, requestedQuality, audio);
   const failures: string[] = [];
   for (const endpoint of [...new Set([relayUrl(), ...FALLBACK_PROCESSORS])]) {
@@ -173,11 +208,17 @@ export async function downloadYouTubeFile(
       const id = parseYouTubeVideoId(sourceUrl) || "video";
       return new File([blob], "youtube-" + id + (audio ? ".mp3" : ".mp4"), { type: blob.type });
     } catch (error) {
-      failures.push(new URL(endpoint, window.location.href).hostname + ": " + (error instanceof Error ? error.message : String(error)));
+      const reason = error instanceof Error ? error.message : String(error);
+      // Record the sanitized reason only (do not log URLs or signed tokens).
+      failures.push(reason);
       onProgress?.(0, null);
     }
   }
-  throw new Error("No working YouTube processor: " + failures.join(" | "));
+  const all = failures.join(" | ");
+  throw new Error(
+    explainYouTubeFailure(all) +
+    " (" + failures.length + " processor attempt" + (failures.length === 1 ? "" : "s") + " failed.)"
+  );
 }
 
 interface VerifiedInfo {

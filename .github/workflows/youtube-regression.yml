@@ -1,0 +1,53 @@
+name: Verify YouTube download integration
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "services/youtube/**"
+      - "src/lib/youtubeRuntime.ts"
+      - "src/components/YouTubeDownloader.tsx"
+      - ".github/workflows/youtube-regression.yml"
+permissions:
+  contents: read
+jobs:
+  code-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          cache: npm
+      - run: node --test services/youtube/server.test.cjs
+      - run: npm ci
+      - run: npm run build
+  live-owned-video:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+      - name: Install media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          python3 -m pip install --user --break-system-packages -U "yt-dlp[default]" bgutil-ytdlp-pot-provider
+      - name: Download exact owned video at up to 1080p
+        run: |
+          set -euo pipefail
+          mkdir -p verified
+          python3 -m yt_dlp --no-playlist --no-warnings --js-runtimes node \
+            --extractor-args "youtube:player_client=mweb,tv,web_safari" \
+            -f "bv*[height<=1080]+ba/b[height<=1080]" \
+            --merge-output-format mp4 \
+            -o "verified/R35KGQT3fT8.%(ext)s" \
+            "https://youtu.be/R35KGQT3fT8?is=UMzhDSFwoT6uHT2b"
+          test -s verified/R35KGQT3fT8.mp4
+          ffprobe -v error -show_entries format=duration,size -of json verified/R35KGQT3fT8.mp4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: verified-R35KGQT3fT8-1080p
+          path: verified/R35KGQT3fT8.mp4
+          retention-days: 1

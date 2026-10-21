@@ -29,45 +29,59 @@ The main page handles public TikTok media through the existing Supabase backend.
 
 ## YouTube downloader
 
-Available at `/youtube`.
+Route: /youtube
 
-The YouTube page no longer uses the old `youtube-scraper` Supabase Edge Function, which could fail with the generic `Edge Function returned a non-2xx status code` message when YouTube rejected cloud egress.
+The original page had different development and production code, and public
+Cobalt processors often reject YouTube downloads. The same runtime now ships
+in both builds. A fresh stream is requested at Download time rather than
+reusing an expired media URL.
 
-The current YouTube flow is browser-first:
+### Free self-hosted engine (recommended for dependable high-res support)
 
-1. The browser tries the public Cobalt community metadata endpoints at runtime.
-2. It only considers processors that explicitly report `auth: false`, `cors: true`, are online, and report YouTube support.
-3. If the separate current-working directory is browser-accessible, its YouTube list is intersected with that eligible set.
-4. The browser requests the selected public video directly from an eligible processor.
-5. The returned media tunnel is read by the browser before the file is exposed to the user.
-6. A 25-second no-data watchdog aborts stalled media streams.
-7. The received media must contain more than zero bytes; the final `Blob` and `File` are both checked again for `size > 0`.
-8. If direct browser discovery is unavailable, the page can fall back to the locked-down `/api/cobalt` JSON relay deployed by the repo-linked Vercel project.
+A Docker-based **yt-dlp + FFmpeg + bgutil PO-token provider** is included under
+[services/youtube](services/youtube/README.md).
 
-The code does not use Cobalt `/session` to bypass JWT or Turnstile protection and does not inject private community API keys. Protected instances are intentionally excluded from the direct discovery path.
+- Select **maximum**, **2160p/4K**, **1440p**, **1080p**, **720p**, **480p** or **360p**.
+- The selected number is a **maximum requested quality**, not an upscaling
+  promise. Only formats available for the source can be downloaded.
+- The self-hosted engine merges separate video and audio streams into MP4.
+- Audio-only mode outputs real MP3 through FFmpeg.
+- On a configured engine, the browser can request source-format metadata so
+  that quality options reflect supported heights.
+- Downloads from the engine are native browser file downloads and avoid
+  buffering multi-gigabyte files in mobile Safari.
+- Requests use short-lived signed links, per-job temporary directories, a
+  concurrency limit and a private server-to-server API key.
 
-Supported controls include:
+To enable for all visitors, run the Docker service on a reachable host with an
+HTTPS URL, and set COBALT_API_URL and COBALT_API_KEY on the repository-linked
+Vercel project **tiktok4kvideodownloader-nc54** (server-side only).
 
-- MP4 video download
-- H.264 / MP4 video preference
-- 360p, 480p, 720p, 1080p, 1440p, 2160p/4K, and maximum-quality requests
-- MP3 audio-only download
-- Live byte/progress display
-- Per-processor errors instead of the old generic Supabase Edge Function failure
-- Zero-byte rejection so an empty or endless `0 KB` file is never treated as success
-- iPhone Web Share save flow when supported
+**Cost:** The software is free and open source, but reliable public bandwidth
+and a running computer/server are still required. A free deployment for
+unlimited people/video sizes cannot be guaranteed.
 
-Only download media you own or have permission to save.
+**Availability:** As long as that engine is not configured/deployed, the
+website still attempts the existing public Cobalt community processors and
+will report failures. Some hosts require API keys or block YouTube access.
+The relay intentionally does not bypass another service's authentication.
 
-## Exact-video verification
+YouTube sometimes requires cookies, PO tokens or blocks cloud IP addresses.
+The PO-token provider can help with some cases but **does not override**
+login restrictions. The site must never claim a successful download if
+a processor returned an error or empty response.
 
-The project has repeatedly tested this owned video during development:
+### Exact owned-video regression test
 
-```text
-https://youtu.be/zzLrHzJrSi4?is=s8lEzsuXpNKlu3sL
-```
+[GitHub Actions — YouTube regression](../../actions/workflows/youtube-regression.yml)
+checks the frontend build, backend logic and attempts to download:
 
-One verified run resolved the real 1080p MP4 and read **65,536 bytes** from the returned media tunnel with browser-compatible `Access-Control-Allow-Origin: *`. Community processor availability later changed, which is why the frontend now performs runtime discovery instead of permanently pinning that processor.
+    https://youtu.be/R35KGQT3fT8?is=UMzhDSFwoT6uHT2b
+
+At the initial run on October 20, 2026, the code tests and Vite build passed,
+but the GitHub runner received YouTube's "Sign in to confirm you're not a bot"
+response. No verified MP4 was generated. See [run #39534652740](../../actions/runs/39534652740).
+The workflow only uploads a video artifact when yt-dlp and ffprobe succeed.
 
 ## GitHub Pages deployment
 

@@ -2,6 +2,9 @@ const ALLOWED_ORIGINS = new Set([
   "https://nightvibes33.github.io",
   "https://tiktok4kvideodownloader.vercel.app",
   "https://tiktok4kvideodownloader-nc54.vercel.app",
+  "https://tiktok4kvideodownloader.lovable.app",
+  "http://localhost:8080",
+  "http://localhost:5173",
 ]);
 
 const COBALT_DIRECTORY = "https://cobalt.directory/api/working?type=api";
@@ -13,17 +16,23 @@ const USER_AGENT = "YT-Pocket-Relay/1.2 (+https://github.com/NightVibes33/tiktok
 
 function setCors(req, res) {
   const origin = req.headers.origin || "";
-  const allowOrigin = ALLOWED_ORIGINS.has(origin)
-    ? origin
-    : origin.endsWith(".vercel.app")
-      ? origin
-      : "https://nightvibes33.github.io";
+  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : "https://nightvibes33.github.io";
 
   res.setHeader("Access-Control-Allow-Origin", allowOrigin);
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type,Accept");
   res.setHeader("Cache-Control", "no-store");
+}
+
+function configuredProcessor() {
+  const raw = String(process.env.COBALT_API_URL || "").trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) return null;
+    return url.href.endsWith("/") ? url.href : url.href + "/";
+  } catch { return null; }
 }
 
 function normalizeHost(value) {
@@ -124,15 +133,19 @@ async function getInstanceMetadata() {
 }
 
 async function getWorkingUpstreams() {
-  const [directoryHosts, metadata] = await Promise.all([
-    getDirectoryYouTubeHosts(),
+  // Directory availability is independent of whether an instance permits
+  // anonymous API access. A 403 from its Cloudflare layer must not break all
+  // instance discovery.
+  const [directory, metadata] = await Promise.all([
+    getDirectoryYouTubeHosts().catch(() => null),
     getInstanceMetadata(),
   ]);
+  const directoryHosts = directory && directory.size ? directory : null;
 
   const eligible = [];
   for (const instance of metadata) {
     const host = normalizeHost(instance?.api || "");
-    if (!host || !directoryHosts.has(host)) continue;
+    if (!host || (directoryHosts && !directoryHosts.has(host))) continue;
     if (instance?.online === false) continue;
     if (instance?.services?.youtube !== true) continue;
     if (instance?.info?.auth !== false) continue;
@@ -146,6 +159,9 @@ async function getWorkingUpstreams() {
 }
 
 async function callUpstream(upstream, body, groupSignal) {
+  const authorization = configuredProcessor() === upstream && process.env.COBALT_API_KEY
+    ? { Authorization: "Api-Key " + process.env.COBALT_API_KEY }
+    : {};
   const controller = new AbortController();
   const abortFromGroup = () => controller.abort();
   groupSignal?.addEventListener("abort", abortFromGroup, { once: true });
@@ -158,6 +174,7 @@ async function callUpstream(upstream, body, groupSignal) {
         Accept: "application/json",
         "Content-Type": "application/json",
         "User-Agent": USER_AGENT,
+        ...authorization,
       },
       body: JSON.stringify(body),
       redirect: "follow",
@@ -175,13 +192,15 @@ async function callUpstream(upstream, body, groupSignal) {
     if (!response.ok || data?.status === "error") {
       throw new Error(data?.error?.code || `upstream_http_${response.status}`);
     }
-    if (data?.status !== "tunnel" || typeof data?.url !== "string") {
+    if (!["tunnel", "redirect"].includes(data?.status) || typeof data?.url !== "string") {
       throw new Error(`unexpected_${data?.status || "response"}`);
     }
 
+    const media = new URL(data.url);
+    if (media.protocol !== "https:") throw new Error("insecure_media_url");
     return {
-      status: "tunnel",
-      url: data.url,
+      status: data.status,
+      url: media.href,
       filename: typeof data.filename === "string" ? data.filename : undefined,
       processor: new URL(upstream).hostname,
     };
@@ -220,30 +239,22 @@ async function raceBatch(upstreams, body) {
 
 export default async function handler(req, res) {
   setCors(req, res);
-
   if (req.method === "OPTIONS") return res.status(204).end();
-
-  let upstreams = [];
-  let discoveryError;
-  try {
-    upstreams = await getWorkingUpstreams();
-  } catch (error) {
-    discoveryError = error instanceof Error ? error.message : String(error);
+  if (req.headers.origin && !ALLOWED_ORIGINS.has(req.headers.origin)) {
+    return res.status(403).json({ error: "origin_not_allowed" });
+  }
+  if (req.method !== "GET" && req.method !== "POST") {
+    return res.status(405).json({ error: "method_not_allowed" });
   }
 
+  const configured = configuredProcessor();
+  // Fast health checks do not depend on third-party directories.
   if (req.method === "GET") {
     return res.status(200).json({
-      ok: true,
-      service: "yt-pocket-cobalt-json-relay",
-      mediaProxy: false,
-      strategy: "explicit-noauth-cors-intersection",
-      upstreamCount: upstreams.length,
-      sample: upstreams.slice(0, 6).map((url) => new URL(url).hostname),
-      discoveryError,
+      ok: true, service: "yt-pocket-cobalt-json-relay", mediaProxy: false,
+      configured: !!configured, credentialsConfigured: !!process.env.COBALT_API_KEY,
     });
   }
-
-  if (req.method !== "POST") return res.status(405).json({ error: "method_not_allowed" });
 
   let body;
   try {
@@ -251,20 +262,34 @@ export default async function handler(req, res) {
   } catch (error) {
     return res.status(400).json({ error: error instanceof Error ? error.message : "invalid_request" });
   }
+  const failures = [];
+  if (configured) {
+    try {
+      const result = await callUpstream(configured, body);
+      return res.status(200).json(result);
+    } catch (error) {
+      failures.push({ processor: "configured", error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  let upstreams = [];
+  let discoveryError;
+  try { upstreams = (await getWorkingUpstreams()).filter((url) => url !== configured); }
+  catch (error) { discoveryError = error instanceof Error ? error.message : String(error); }
 
   if (!upstreams.length) {
     return res.status(503).json({
-      error: "no_explicit_noauth_processors_available",
+      error: "no_working_processors",
+      configured: !!configured,
       discoveryError,
+      failures,
     });
   }
-
-  const failures = [];
   for (let offset = 0; offset < Math.min(upstreams.length, 12); offset += 4) {
     const { result, failures: batchFailures } = await raceBatch(upstreams.slice(offset, offset + 4), body);
     if (result) return res.status(200).json(result);
     failures.push(...batchFailures);
   }
 
-  return res.status(502).json({ error: "all_eligible_processors_failed", failures });
+  return res.status(502).json({ error: "all_eligible_processors_failed", failures, configured: !!configured });
 }

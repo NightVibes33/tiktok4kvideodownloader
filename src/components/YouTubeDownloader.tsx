@@ -38,7 +38,7 @@ function isYouTubeUrl(text: string) { return !!parseYouTubeVideoId(text); }
 
 function getQualityTier(q: QualityOption | null): { label: string } | null {
   if (!q) return null;
-  const maxDim = Math.max(q.width, q.height);
+  const maxDim = q.height;
   if (maxDim >= 2160) return { label: "4K" };
   if (maxDim >= 1440) return { label: "1440p" };
   if (maxDim >= 1080) return { label: "Full HD" };
@@ -192,7 +192,7 @@ function DownloadActions({
         setProgress(bytes ? formatBytes(bytes) + (total ? " / " + formatBytes(total) : "") : "Trying another processor…");
       });
       if ("directDownloadUrl" in result) {
-        setProgress("Download handed to your browser. The server verifies and merges the media before saving.");
+        setProgress("Your browser is opening the download. Save the file after your browser confirms it is complete.");
         const a = document.createElement("a");
         a.href = result.directDownloadUrl;
         a.rel = "noopener";
@@ -330,7 +330,7 @@ export default function YouTubeDownloader() {
           </h1>
           <p className="text-sm text-dim mt-2 flex items-center justify-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-accent" />
-            Paste a link · Pick quality · Save MP4
+            Paste a link · Request quality · Save when available
           </p>
         </div>
       </div>
@@ -469,6 +469,11 @@ export default function YouTubeDownloader() {
                     duration={data.video.duration}
                   />
 
+                  <p className="text-xs text-dim leading-relaxed">
+                    Quality settings are upper limits, not confirmed download streams.
+                    Available resolution depends on the video and a working processor.
+                    Google sign-in only verifies your account on this website.
+                  </p>
                   <DownloadActions
                     sourceUrl={watchUrl}
                     requestedQuality={activeQuality?.url || "1080"}
